@@ -1,0 +1,3 @@
+- assertions framework - impl Assertion<T> for &T
+- ghetto-parse - maybe just nom!
+- oops for Result<T, E> -> io::Resut<T>

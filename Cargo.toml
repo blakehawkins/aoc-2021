@@ -1,0 +1,9 @@
+[package]
+name = "aoc"
+version = "0.1.0"
+authors = ["blakeh <blakeh@palantir.com>"]
+edition = "2018"
+
+[dependencies]
+oops = "0.1"
+nom = "6.0"
