@@ -35,31 +35,35 @@ const INPUT: [i32; 200] = [
     1736, 1180, 1984, 1401, 1340, 1292, 1979, 1876,
 ];
 
-const INPUT2: &'static str = include_str!("day2.input");
+const INPUT2: &str = include_str!("day2.input");
 
-const INPUT3: &'static str = include_str!("day3.input");
+const INPUT3: &str = include_str!("day3.input");
 
-const INPUT4: &'static str = include_str!("day4.input");
+const INPUT4: &str = include_str!("day4.input");
 
-const INPUT5: &'static str = include_str!("day5.input");
+const INPUT5: &str = include_str!("day5.input");
 
-const INPUT6: &'static str = include_str!("day6.input");
+const INPUT6: &str = include_str!("day6.input");
 
-const INPUT7: &'static str = include_str!("day7.input");
+const INPUT7: &str = include_str!("day7.input");
 
-const INPUT8: &'static str = include_str!("day8.input");
+const INPUT8: &str = include_str!("day8.input");
 
-const INPUT9: &'static str = include_str!("day9.input");
+const INPUT9: &str = include_str!("day9.input");
 
-const INPUT10: &'static str = include_str!("day10.input");
+const INPUT10: &str = include_str!("day10.input");
 
-const INPUT11: &'static str = include_str!("day11.input");
+const INPUT11: &str = include_str!("day11.input");
 
-const INPUT12: &'static str = include_str!("day12.input");
+const INPUT12: &str = include_str!("day12.input");
 
-const INPUT13: &'static str = include_str!("day13.input");
+const INPUT13: &str = include_str!("day13.input");
 
-const INPUT14: &'static str = include_str!("day14.input");
+const INPUT14: &str = include_str!("day14.input");
+
+const INPUT15: &str = include_str!("day15.input");
+
+const INPUT16: &str = include_str!("day16.input");
 
 mod day1 {
     use crate::*;
@@ -228,14 +232,14 @@ mod day4 {
     impl<'a> Passport<'a> {
         pub fn new(pairs: HashMap<&'a str, &'a str>) -> Passport {
             Passport {
-                byr: pairs.get("byr").map(|v| *v),
-                iyr: pairs.get("iyr").map(|v| *v),
-                eyr: pairs.get("eyr").map(|v| *v),
-                hgt: pairs.get("hgt").map(|v| *v),
-                hcl: pairs.get("hcl").map(|v| *v),
-                ecl: pairs.get("ecl").map(|v| *v),
-                pid: pairs.get("pid").map(|v| *v),
-                cid: pairs.get("cid").map(|v| *v),
+                byr: pairs.get("byr").copied(),
+                iyr: pairs.get("iyr").copied(),
+                eyr: pairs.get("eyr").copied(),
+                hgt: pairs.get("hgt").copied(),
+                hcl: pairs.get("hcl").copied(),
+                ecl: pairs.get("ecl").copied(),
+                pid: pairs.get("pid").copied(),
+                cid: pairs.get("cid").copied(),
             }
         }
     }
@@ -322,9 +326,9 @@ mod day4 {
                         .and_then(|v| v.parse::<u32>().ok())
                         .map(|v| (v, units))
                 })
-                .filter(|(q, units)| match units {
-                    &b"cm" => *q >= 150 && *q <= 193,
-                    &b"in" => *q >= 59 && *q <= 76,
+                .filter(|(q, units)| match *units {
+                    b"cm" => *q >= 150 && *q <= 193,
+                    b"in" => *q >= 59 && *q <= 76,
                     _ => false,
                 })
                 .is_some()
@@ -344,7 +348,7 @@ mod day4 {
                     parse_hexi(v.as_bytes())
                         .finish()
                         .ok()
-                        .filter(|(i, _)| i.len() == 0)
+                        .filter(|(i, _)| i.is_empty())
                         .map(|(_, out)| out)
                 })
                 .is_some()
@@ -373,7 +377,7 @@ mod day4 {
                     parse_passno(v.as_bytes())
                         .finish()
                         .ok()
-                        .filter(|(i, _)| i.len() == 0)
+                        .filter(|(i, _)| i.is_empty())
                         .map(|(_, out)| out)
                 })
                 .is_some()
@@ -511,8 +515,7 @@ mod day5 {
         let gap = sorted
             .iter()
             .zip(sorted.iter().skip(1))
-            .filter(|(a, b)| (*b - *a) > 1)
-            .next()
+            .find(|(a, b)| (*b - *a) > 1)
             .unwrap();
         println!("{}", gap.0 + 1);
     }
@@ -538,7 +541,7 @@ mod day6 {
         println!("{}", group_sums);
     }
 
-    pub fn day6_part2() {
+    pub fn day6_part2() -> usize {
         let group_sums: usize = INPUT6
             .split("\n\n")
             .map(|group| {
@@ -547,14 +550,14 @@ mod day6 {
                     .map(|individual| individual.chars().into_iter().collect::<HashSet<_>>())
                     .collect::<Vec<_>>();
 
-                let first = individuals.iter().next().unwrap().clone();
+                let first = individuals.get(0).unwrap().clone();
 
                 individuals
                     .into_iter()
                     .fold(first, |set, iter| {
                         set.intersection(&iter)
                             .into_iter()
-                            .map(|ch| *ch)
+                            .copied()
                             .collect::<HashSet<_>>()
                     })
                     .iter()
@@ -563,7 +566,7 @@ mod day6 {
             .into_iter()
             .sum();
 
-        println!("{}", group_sums);
+        group_sums
     }
 }
 
@@ -654,7 +657,7 @@ mod day7 {
                 ))
                 .unwrap();
 
-            if inner.len() > 0 {
+            if !inner.is_empty() {
                 inner.iter().for_each(|(inner_count, inner_container)| {
                     sum += count * inner_count;
                     processing.push_back((count * inner_count, inner_container));
@@ -662,7 +665,7 @@ mod day7 {
             }
         }
 
-        return sum;
+        sum
     }
 }
 
@@ -689,10 +692,12 @@ mod day8 {
             .collect::<BTreeMap<_, _>>()
     }
 
+    type InstructionState<'a> = BTreeMap<isize, ((&'a str, isize), bool)>;
+
     pub fn day8_evaluate_debugger(
-        mut debugger: BTreeMap<isize, ((&str, isize), bool)>,
+        mut debugger: InstructionState,
         mut iptr: isize,
-    ) -> (BTreeMap<isize, ((&str, isize), bool)>, isize, bool) {
+    ) -> (InstructionState, isize, bool) {
         let mut accum = 0;
         while let Some(false) = debugger.get(&iptr).map(|d| d.1) {
             let data = debugger.get(&iptr).unwrap().0;
@@ -744,7 +749,7 @@ mod day8 {
                     iptr += 1;
                 }
                 "jmp" => {
-                    if let Some(_) = potential_starting_states.get(&(iptr + 1)) {
+                    if potential_starting_states.get(&(iptr + 1)).is_some() {
                         if flipped.is_none() {
                             flipped = Some(iptr);
                             debugger.insert(iptr, (("nop", data.1), false));
@@ -756,7 +761,7 @@ mod day8 {
                     }
                 }
                 "nop" => {
-                    if let Some(_) = potential_starting_states.get(&(iptr + data.1)) {
+                    if potential_starting_states.get(&(iptr + data.1)).is_some() {
                         if flipped.is_none() {
                             flipped = Some(iptr);
                             debugger.insert(iptr, (("jmp", data.1), false));
@@ -788,11 +793,9 @@ mod day8 {
         let starting_states = debugger
             .iter()
             .map(|(k, _)| k)
-            .filter(|idx| !stuck_debugger.get(idx).unwrap().1)
-            .collect::<Vec<_>>();
+            .filter(|idx| !stuck_debugger.get(idx).unwrap().1);
 
         let potential_starting_states = starting_states
-            .into_iter()
             .map(|idx| day8_evaluate_debugger(debugger.clone(), *idx))
             .filter(|(_, _, stuck)| !stuck)
             .map(|(dbg, _, _)| {
@@ -802,7 +805,7 @@ mod day8 {
                     .collect::<HashSet<_>>()
             })
             .fold(HashSet::new(), |set, iter| {
-                set.union(&iter).map(|v| *v).collect()
+                set.union(&iter).copied().collect()
             });
 
         day8_part2_validate(input, potential_starting_states)
@@ -827,8 +830,7 @@ mod day9 {
 
                 (goal, variants.contains(&goal))
             })
-            .filter(|(_, succ)| !succ)
-            .next()
+            .find(|(_, succ)| !succ)
             .unwrap()
             .0
     }
@@ -898,7 +900,7 @@ mod day10 {
             return *res;
         }
 
-        if let None = decision_indices.get(&idx) {
+        if decision_indices.get(&idx).is_none() {
             return 1;
         }
 
@@ -981,7 +983,7 @@ mod day11 {
         let mut arrays = day11_parse_input(input);
 
         let mut stable = false;
-        let mut arrays_alt = arrays.clone();
+        let mut arrays_alt = arrays;
         while !stable {
             let mut did_swap = false;
             for ii in 1..arrays.len() - 1 {
@@ -1030,7 +1032,7 @@ mod day11 {
         let mut arrays = day11_parse_input(input);
 
         let mut stable = false;
-        let mut arrays_alt = arrays.clone();
+        let mut arrays_alt = arrays;
         while !stable {
             let mut did_swap = false;
             for ii in 1..arrays.len() - 1 {
@@ -1053,10 +1055,9 @@ mod day11 {
                                 arrays
                                     .get((ii as isize + (idx * i)) as usize)
                                     .and_then(|line| line.get((jj as isize + (idx * j)) as usize))
-                                    .unwrap_or_else(|| &Seat::Void)
+                                    .unwrap_or(&Seat::Void)
                             })
-                            .filter(|seat| **seat != Seat::Floor)
-                            .next()
+                            .find(|seat| **seat != Seat::Floor)
                             .unwrap()
                     })
                     .filter(|seat| **seat == Seat::Occupied)
@@ -1211,8 +1212,7 @@ mod day13 {
                 (
                     (0..)
                         .map(|idx| idx * x)
-                        .filter(|v| *v >= goal)
-                        .next()
+                        .find(|v| *v >= goal)
                         .unwrap(),
                     x,
                 )
@@ -1234,7 +1234,7 @@ mod day13 {
             .map(|(idx, v)| (idx, v.parse::<u128>().unwrap()))
             .collect::<Vec<_>>();
 
-        let gens = indices
+        let _gens = indices
             .iter()
             .map(|(idx, val)| {
                 (
@@ -1257,8 +1257,193 @@ mod day13 {
 }
 
 mod day14 {
-    pub fn day14_part1(input: &str) -> usize {
-        0
+    use crate::*;
+
+    enum Input<'a> {
+        MemMapping(u64, u64),
+        Mask(&'a str),
+    }
+
+    pub fn day14_part1(input: &str) -> u128 {
+        input
+            .split('\n')
+            .map(|line| {
+                let mut chars = line.chars();
+                match chars.nth(1).unwrap() {
+                    'a' => Input::Mask(&line[7..]),
+                    'e' => {
+                        let parts = line[4..]
+                            .split(|v| v == '=')
+                            .map(|v| v.trim_matches(&[' ', ']'][..]))
+                            .collect::<ArrayVec<[&str; 2]>>();
+
+                        Input::MemMapping(
+                            parts[0].parse::<u64>().unwrap(),
+                            parts[1].parse::<u64>().unwrap(),
+                        )
+                    }
+                    _ => panic!("Unexpected input"),
+                }
+            })
+            .fold(
+                (HashMap::new(), 0, u64::MAX),
+                |(mut mem, mut or_mask, mut and_mask), iter| {
+                    match iter {
+                        Input::MemMapping(addr, value) => {
+                            mem.insert(addr, (value & and_mask) | or_mask);
+                        }
+                        Input::Mask(v) => {
+                            let indices = (0..).zip(v.chars().rev());
+
+                            or_mask = 0;
+                            and_mask = u64::MAX;
+
+                            indices.for_each(|(idx, v)| match v {
+                                '1' => or_mask |= 1 << idx,
+                                '0' => and_mask &= (u64::MAX - 1).rotate_left(idx),
+                                'X' => (),
+                                _ => panic!("Unexpected input"),
+                            })
+                        }
+                    };
+
+                    (mem, or_mask, and_mask)
+                },
+            )
+            .0
+            .values()
+            .map(|v| *v as u128)
+            .sum()
+    }
+}
+
+mod day15 {
+    use std::collections::HashMap;
+
+    type TurnMap = HashMap<usize, (usize, usize)>;
+
+    fn day15_iterate(
+        map_and_last_spoken_and_turn_number: (TurnMap, usize, usize),
+        turn_and_input: (usize, usize),
+    ) -> (TurnMap, usize, usize) {
+        let this_turn_number = turn_and_input.0;
+        let this_input = turn_and_input.1;
+
+        let mut map = map_and_last_spoken_and_turn_number.0;
+        let entry = map.entry(this_input).or_insert((0, 0));
+        entry.0 = entry.1;
+        entry.1 = this_turn_number;
+
+        (map, this_input, this_turn_number)
+    }
+
+    fn day15_iterate2(
+        map_and_last_spoken_and_turn_number: (TurnMap, usize, usize),
+        this_turn_number: usize,
+    ) -> (TurnMap, usize, usize) {
+        let last_spoken = map_and_last_spoken_and_turn_number.1;
+
+        let last_turn_of_this_input = map_and_last_spoken_and_turn_number
+            .0
+            .get(&last_spoken)
+            .unwrap_or(&(0usize, 0usize));
+
+        let this_speak = if last_turn_of_this_input.0 == 0 {
+            0
+        } else {
+            last_turn_of_this_input.1 - last_turn_of_this_input.0
+        };
+
+        let mut map = map_and_last_spoken_and_turn_number.0;
+        let entry = map.entry(this_speak).or_insert((0, 0));
+        entry.0 = entry.1;
+        entry.1 = this_turn_number;
+
+        (map, this_speak, this_turn_number)
+    }
+
+    pub fn day15_part1(input: &str) -> usize {
+        let (data, last_spoken, last_turn_number) = (1usize..)
+            .zip(input.split(',').map(|v| v.parse::<usize>().unwrap()))
+            .fold((HashMap::new(), 0, 1), day15_iterate);
+
+        let (_, last_spoken, _) = ((last_turn_number + 1)..=2020)
+            .fold((data, last_spoken, last_turn_number - 1), day15_iterate2);
+
+        last_spoken
+    }
+
+    pub fn day15_part2(input: &str) -> usize {
+        let (data, last_spoken, last_turn_number) = (1usize..)
+            .zip(input.split(',').map(|v| v.parse::<usize>().unwrap()))
+            .fold((HashMap::new(), 0, 1), day15_iterate);
+
+        let (_, last_spoken, _) = ((last_turn_number + 1)..=30000000)
+            .fold((data, last_spoken, last_turn_number - 1), day15_iterate2);
+
+        last_spoken
+    }
+}
+
+mod day16 {
+    use crate::*;
+
+    fn parse(
+        input: &str,
+    ) -> (
+        Vec<RangeInclusive<usize>>,
+        &str,
+        impl Iterator<Item = usize> + '_,
+    ) {
+        let mut sections = input.split("\n\n");
+
+        let rules = sections.next().unwrap();
+
+        let my_ticket = sections.next().unwrap();
+
+        let other_tickets = sections.next().unwrap();
+
+        let valid_ranges = rules
+            .split('\n')
+            .map(|line| {
+                let mut hyphenated_pairs = line
+                    .split(':')
+                    .nth(1)
+                    .unwrap()
+                    .trim()
+                    .split(" or ")
+                    .map(|pair| {
+                        let mut pair = pair.split('-');
+                        pair.next().unwrap().parse::<usize>().unwrap()
+                            ..=pair.next().unwrap().parse::<usize>().unwrap()
+                    });
+
+                (
+                    hyphenated_pairs.next().unwrap(),
+                    hyphenated_pairs.next().unwrap(),
+                )
+            })
+            .fold(vec![], |mut vec, pair| {
+                vec.push(pair.0);
+                vec.push(pair.1);
+
+                vec
+            });
+
+        let other_tickets = other_tickets
+            .split('\n')
+            .skip(1)
+            .flat_map(|line| line.split(',').map(|val| val.parse::<usize>().unwrap()));
+
+        (valid_ranges, my_ticket, other_tickets)
+    }
+
+    pub fn part1(input: &str) -> usize {
+        let (valid_ranges, _, other_tickets) = parse(input);
+
+        other_tickets
+            .filter(|val| !valid_ranges.iter().any(|range| range.contains(val)))
+            .sum()
     }
 }
 
@@ -1274,7 +1459,7 @@ fn main() -> std::io::Result<()> {
     day5::day5_part1();
     day5::day5_part2();
     day6::day6_part1();
-    day6::day6_part2();
+    println!("Day  6, part 2: {}", day6::day6_part2());
     println!("Day  7, part 1: {}", day7::day7_part1(INPUT7));
     println!("Day  7, part 2: {}", day7::day7_part2(INPUT7));
     println!("Day  8, part 1: {}", day8::day8_part1(INPUT8));
@@ -1290,7 +1475,10 @@ fn main() -> std::io::Result<()> {
     println!("Day 12, part 2: {}", day12::day12_part2(INPUT12));
     println!("Day 13, part 1: {}", day13::day13_part1(INPUT13));
     println!("!Day 13, part 2: {}", day13::day13_part2(INPUT13));
-    println!("Day 14, part1: {}", day14::day14_part1(INPUT14));
+    println!("Day 14, part 1: {}", day14::day14_part1(INPUT14));
+    println!("Day 15, part 1: {}", day15::day15_part1(INPUT15));
+    println!("Day 15, part 2: {}", day15::day15_part2(INPUT15));
+    println!("Day 16, part 1: {}", day16::part1(INPUT16));
 
     Ok(())
 }
@@ -1298,6 +1486,25 @@ fn main() -> std::io::Result<()> {
 #[cfg(test)]
 mod tests {
     use crate::*;
+
+    #[test]
+    fn test_day15() {
+        assert_eq!(day15::day15_part1("0,3,6"), 436);
+        assert_eq!(day15::day15_part1("3,1,2"), 1836);
+    }
+
+    #[test]
+    fn test_day14() {
+        assert_eq!(
+            day14::day14_part1(
+                "mask = XXXXXXXXXXXXXXXXXXXXXXXXXXXXX1XXXX0X
+mem[8] = 11
+mem[7] = 101
+mem[8] = 0"
+            ),
+            165
+        );
+    }
 
     #[test]
     fn test_day12() {
