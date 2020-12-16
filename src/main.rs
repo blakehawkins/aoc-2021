@@ -1208,15 +1208,7 @@ mod day13 {
             .split(',')
             .filter(|v| v != &"x")
             .map(|v| v.parse::<usize>().unwrap())
-            .map(|x| {
-                (
-                    (0..)
-                        .map(|idx| idx * x)
-                        .find(|v| *v >= goal)
-                        .unwrap(),
-                    x,
-                )
-            })
+            .map(|x| ((0..).map(|idx| idx * x).find(|v| *v >= goal).unwrap(), x))
             .collect::<BTreeMap<_, _>>();
 
         let (mins, bus) = sorted.iter().next().unwrap();
@@ -1391,9 +1383,9 @@ mod day16 {
     fn parse(
         input: &str,
     ) -> (
-        Vec<RangeInclusive<usize>>,
+        HashMap<&str, (RangeInclusive<usize>, RangeInclusive<usize>)>,
         &str,
-        impl Iterator<Item = usize> + '_,
+        impl Iterator<Item = impl Iterator<Item = usize> + '_> + '_,
     ) {
         let mut sections = input.split("\n\n");
 
@@ -1406,44 +1398,68 @@ mod day16 {
         let valid_ranges = rules
             .split('\n')
             .map(|line| {
-                let mut hyphenated_pairs = line
-                    .split(':')
-                    .nth(1)
-                    .unwrap()
-                    .trim()
-                    .split(" or ")
-                    .map(|pair| {
-                        let mut pair = pair.split('-');
-                        pair.next().unwrap().parse::<usize>().unwrap()
-                            ..=pair.next().unwrap().parse::<usize>().unwrap()
-                    });
+                let mut split = line.split(':');
+                let name = split.next().unwrap();
+                let mut hyphenated_pairs = split.next().unwrap().trim().split(" or ").map(|pair| {
+                    let mut pair = pair.split('-');
+                    pair.next().unwrap().parse::<usize>().unwrap()
+                        ..=pair.next().unwrap().parse::<usize>().unwrap()
+                });
 
                 (
-                    hyphenated_pairs.next().unwrap(),
-                    hyphenated_pairs.next().unwrap(),
+                    name,
+                    (
+                        hyphenated_pairs.next().unwrap(),
+                        hyphenated_pairs.next().unwrap(),
+                    ),
                 )
             })
-            .fold(vec![], |mut vec, pair| {
-                vec.push(pair.0);
-                vec.push(pair.1);
-
-                vec
-            });
+            .collect::<HashMap<_, _>>();
 
         let other_tickets = other_tickets
             .split('\n')
             .skip(1)
-            .flat_map(|line| line.split(',').map(|val| val.parse::<usize>().unwrap()));
+            .map(|line| line.split(',').map(|val| val.parse::<usize>().unwrap()));
 
         (valid_ranges, my_ticket, other_tickets)
     }
 
     pub fn part1(input: &str) -> usize {
         let (valid_ranges, _, other_tickets) = parse(input);
+        let valid_ranges = valid_ranges.into_iter().fold(vec![], |mut vec, (_, pair)| {
+            vec.push(pair.0);
+            vec.push(pair.1);
+
+            vec
+        });
 
         other_tickets
+            .flatten()
             .filter(|val| !valid_ranges.iter().any(|range| range.contains(val)))
             .sum()
+    }
+
+    pub fn part2(input: &str) -> usize {
+        let (valid_ranges, my_ticket, other_tickets) = parse(input);
+
+        let all_valid_ranges = valid_ranges.into_iter().fold(vec![], |mut vec, (_, pair)| {
+            vec.push(pair.0);
+            vec.push(pair.1);
+
+            vec
+        });
+
+        let other_tickets: Vec<Vec<usize>> = other_tickets.map(|v| v.collect()).collect();
+        let valid_others = other_tickets
+            .into_iter()
+            .filter(|values| {
+                values
+                    .into_iter()
+                    .all(|val| all_valid_ranges.iter().any(|range| range.contains(&val)))
+            })
+            .collect::<Vec<_>>();
+
+        0
     }
 }
 
@@ -1479,6 +1495,7 @@ fn main() -> std::io::Result<()> {
     println!("Day 15, part 1: {}", day15::day15_part1(INPUT15));
     println!("Day 15, part 2: {}", day15::day15_part2(INPUT15));
     println!("Day 16, part 1: {}", day16::part1(INPUT16));
+    println!("Day 16, part 2: {}", day16::part2(INPUT16));
 
     Ok(())
 }
