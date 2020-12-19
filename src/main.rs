@@ -65,6 +65,8 @@ const INPUT15: &str = include_str!("day15.input");
 
 const INPUT16: &str = include_str!("day16.input");
 
+const INPUT17: &str = include_str!("day17.input");
+
 mod day1 {
     use crate::*;
     pub fn day1_part1() {
@@ -1463,6 +1465,155 @@ mod day16 {
     }
 }
 
+mod day17 {
+    use crate::*;
+
+    fn get_actives(input: &str) -> Vec<(isize, isize)> {
+        (0..)
+            .zip(input.split('\n'))
+            .flat_map(|(yy, line)| {
+                (0..)
+                    .zip(line.bytes())
+                    .filter(|(_, byte)| byte == &b'#')
+                    .map(move |(xx, _)| (xx, yy))
+            })
+            .collect::<Vec<(isize, isize)>>()
+    }
+
+    pub fn part1(input: &str) -> usize {
+        let initial_actives = get_actives(input);
+
+        let mut actives = initial_actives
+            .into_iter()
+            .map(|(x, y)| (x, y, 0isize))
+            .collect::<HashSet<_>>();
+
+        let mut next_actives = actives.clone();
+
+        let variants = (-1..=1)
+            .cartesian_product(-1..=1)
+            .cartesian_product(-1..=1)
+            .map(|((x, y), z)| (x, y, z))
+            .filter(|v| v != &(0, 0, 0))
+            .collect::<HashSet<(_, _, _)>>();
+
+        (0..6).for_each(|_| {
+            next_actives.clear();
+
+            // Identify domain bounds on actives.
+            let bounds = actives.iter().fold(
+                ((0, 0), (0, 0), (0, 0)),
+                |((xmin, xmax), (ymin, ymax), (zmin, zmax)), (x, y, z)| {
+                    (
+                        (xmin.min(*x), xmax.max(*x)),
+                        (ymin.min(*y), ymax.max(*y)),
+                        (zmin.min(*z), zmax.max(*z)),
+                    )
+                },
+            );
+
+            // Iterate, write to next_actives. Explicitly call remove when expected absent.
+            (bounds.0 .0 - 1..=bounds.0 .1 + 1)
+                .cartesian_product(bounds.1 .0 - 1..=bounds.1 .1 + 1)
+                .cartesian_product(bounds.2 .0 - 1..=bounds.2 .1 + 1)
+                .map(|((x, y), z)| (x, y, z))
+                .for_each(|(xx, yy, zz)| {
+                    let active_neighbors = variants
+                        .iter()
+                        .map(|(dx, dy, dz)| (xx + dx, yy + dy, zz + dz))
+                        .filter(|(x, y, z)| actives.contains(&(*x, *y, *z)))
+                        .count();
+
+                    let new_active = match (actives.contains(&(xx, yy, zz)), active_neighbors) {
+                        (true, count) if (2..=3).contains(&count) => true,
+                        (true, _) => false,
+                        (false, count) if count == 3 => true,
+                        _ => false,
+                    };
+
+                    if new_active {
+                        next_actives.insert((xx, yy, zz))
+                    } else {
+                        next_actives.remove(&(xx, yy, zz))
+                    };
+                });
+
+            // Swap.
+            std::mem::swap(&mut actives, &mut next_actives);
+        });
+
+        actives.len()
+    }
+
+    pub fn part2(input: &str) -> usize {
+        let initial_actives = get_actives(input);
+
+        let mut actives = initial_actives
+            .into_iter()
+            .map(|(x, y)| (x, y, 0isize, 0isize))
+            .collect::<HashSet<_>>();
+
+        let mut next_actives = actives.clone();
+
+        let variants = (-1..=1)
+            .cartesian_product(-1..=1)
+            .cartesian_product(-1..=1)
+            .cartesian_product(-1..=1)
+            .map(|(((x, y), z), w)| (x, y, z, w))
+            .filter(|v| v != &(0, 0, 0, 0))
+            .collect::<HashSet<(_, _, _, _)>>();
+
+        (0..6).for_each(|_| {
+            next_actives.clear();
+
+            // Identify domain bounds on actives.
+            let bounds = actives.iter().fold(
+                ((0, 0), (0, 0), (0, 0), (0, 0)),
+                |((xmin, xmax), (ymin, ymax), (zmin, zmax), (wmin, wmax)), (x, y, z, w)| {
+                    (
+                        (xmin.min(*x), xmax.max(*x)),
+                        (ymin.min(*y), ymax.max(*y)),
+                        (zmin.min(*z), zmax.max(*z)),
+                        (wmin.min(*w), wmax.max(*w)),
+                    )
+                },
+            );
+
+            // Iterate, write to next_actives. Explicitly call remove when expected absent.
+            (bounds.0 .0 - 1..=bounds.0 .1 + 1)
+                .cartesian_product(bounds.1 .0 - 1..=bounds.1 .1 + 1)
+                .cartesian_product(bounds.2 .0 - 1..=bounds.2 .1 + 1)
+                .cartesian_product(bounds.3 .0 - 1..=bounds.3 .1 + 1)
+                .map(|(((x, y), z), w)| (x, y, z, w))
+                .for_each(|(xx, yy, zz, ww)| {
+                    let active_neighbors = variants
+                        .iter()
+                        .map(|(dx, dy, dz, dw)| (xx + dx, yy + dy, zz + dz, ww + dw))
+                        .filter(|(x, y, z, w)| actives.contains(&(*x, *y, *z, *w)))
+                        .count();
+
+                    let new_active = match (actives.contains(&(xx, yy, zz, ww)), active_neighbors) {
+                        (true, count) if (2..=3).contains(&count) => true,
+                        (true, _) => false,
+                        (false, count) if count == 3 => true,
+                        _ => false,
+                    };
+
+                    if new_active {
+                        next_actives.insert((xx, yy, zz, ww))
+                    } else {
+                        next_actives.remove(&(xx, yy, zz, ww))
+                    };
+                });
+
+            // Swap.
+            std::mem::swap(&mut actives, &mut next_actives);
+        });
+
+        actives.len()
+    }
+}
+
 fn main() -> std::io::Result<()> {
     day1::day1_part1();
     day1::day1_part2();
@@ -1496,6 +1647,8 @@ fn main() -> std::io::Result<()> {
     println!("Day 15, part 2: {}", day15::day15_part2(INPUT15));
     println!("Day 16, part 1: {}", day16::part1(INPUT16));
     println!("Day 16, part 2: {}", day16::part2(INPUT16));
+    println!("Day 17, part 1: {}", day17::part1(INPUT17));
+    println!("Day 17, part 2: {}", day17::part2(INPUT17));
 
     Ok(())
 }
@@ -1503,6 +1656,27 @@ fn main() -> std::io::Result<()> {
 #[cfg(test)]
 mod tests {
     use crate::*;
+
+    #[test]
+    fn test_day17() {
+        assert_eq!(
+            day17::part1(
+                ".#.
+..#
+###"
+            ),
+            112
+        );
+
+        assert_eq!(
+            day17::part2(
+                ".#.
+..#
+###"
+            ),
+            848
+        );
+    }
 
     #[test]
     fn test_day15() {
