@@ -67,6 +67,10 @@ const INPUT16: &str = include_str!("day16.input");
 
 const INPUT17: &str = include_str!("day17.input");
 
+const INPUT18: &str = include_str!("day18.input");
+
+const INPUT19: &str = include_str!("day19.input");
+
 mod day1 {
     use crate::*;
     pub fn day1_part1() {
@@ -1614,6 +1618,237 @@ mod day17 {
     }
 }
 
+mod day18 {
+    use nom::{branch::alt, bytes::complete::take, sequence::terminated};
+    use nom::{bytes::complete::take_while1, combinator::map};
+
+    use crate::*;
+
+    #[derive(Debug, PartialEq)]
+    pub enum Token {
+        Op(Op),
+        Value(Value),
+    }
+
+    #[derive(Debug, PartialEq)]
+    pub enum Value {
+        Just(usize),
+        Expr(Expression),
+    }
+
+    #[derive(Debug, PartialEq)]
+    pub struct Expression(pub Vec<Token>);
+
+    #[derive(Debug, PartialEq)]
+    pub enum Op {
+        Addition,
+        Multiplication,
+    }
+
+    pub fn parse_digit(input: &[u8]) -> IResult<&[u8], usize> {
+        map(take_while1(is_digit), |v: &[u8]| {
+            String::from_utf8_lossy(v).parse::<usize>().unwrap()
+        })(input)
+    }
+
+    pub fn parse_value(input: &[u8]) -> IResult<&[u8], Value> {
+        alt((
+            preceded(
+                tag([b'(']),
+                terminated(map(parse_expression, |v| Value::Expr(v)), tag([b')'])),
+            ),
+            map(parse_digit, |v| Value::Just(v)),
+        ))(input)
+    }
+
+    pub fn parse_expression(input: &[u8]) -> IResult<&[u8], Expression> {
+        map(
+            separated_list1(
+                tag([b' ']),
+                alt((
+                    map(parse_value, |v| Token::Value(v)),
+                    map(parse_operator, |v| Token::Op(v)),
+                )),
+            ),
+            |v| Expression(v),
+        )(input)
+    }
+
+    pub fn parse_operator(input: &[u8]) -> IResult<&[u8], Op> {
+        map(take(1usize), |v: &[u8]| match v {
+            [b'+'] => Op::Addition,
+            [b'*'] => Op::Multiplication,
+            _ => panic!("Not an operator"),
+        })(input)
+    }
+
+    pub fn part1_evaluate_expression(expr: Expression) -> usize {
+        expr.0
+            .into_iter()
+            .fold((Op::Addition, 0usize), |(curr_op, accum), token| {
+                match (token, curr_op) {
+                    (Token::Op(op), _) => (op, accum),
+                    (Token::Value(Value::Just(val)), Op::Addition) => (Op::Addition, accum + val),
+                    (Token::Value(Value::Just(val)), Op::Multiplication) => {
+                        (Op::Multiplication, accum * val)
+                    }
+                    (Token::Value(Value::Expr(ex)), Op::Addition) => {
+                        (Op::Addition, accum + part1_evaluate_expression(ex))
+                    }
+                    (Token::Value(Value::Expr(ex)), Op::Multiplication) => {
+                        (Op::Multiplication, accum * part1_evaluate_expression(ex))
+                    }
+                }
+            })
+            .1
+    }
+
+    pub fn part2_evaluate_expression(expr: Expression) -> usize {
+        let evaluated_parens = expr
+            .0
+            .into_iter()
+            .map(|token| {
+                if let Token::Value(Value::Expr(expr)) = token {
+                    Token::Value(Value::Just(part2_evaluate_expression(expr)))
+                } else {
+                    token
+                }
+            })
+            .collect::<Vec<_>>();
+
+        let evaluated_adds =
+            evaluated_parens
+                .into_iter()
+                .fold(VecDeque::new(), |mut data, iter| {
+                    match iter {
+                        Token::Op(op) => data.push_back(Token::Op(op)),
+                        Token::Value(Value::Just(val)) => {
+                            if let Some(Token::Op(Op::Addition)) = data.back() {
+                                data.pop_back();
+                                if let Some(Token::Value(Value::Just(prev))) = data.pop_back() {
+                                    data.push_back(Token::Value(Value::Just(prev + val)));
+                                }
+                            } else {
+                                data.push_back(Token::Value(Value::Just(val)));
+                            }
+                        }
+                        _ => data.push_back(iter),
+                    }
+
+                    data
+                });
+
+        evaluated_adds
+            .into_iter()
+            .filter_map(|token| {
+                if let Token::Value(Value::Just(val)) = token {
+                    Some(val)
+                } else {
+                    None
+                }
+            })
+            .product()
+    }
+
+    pub fn part1(input: &str) -> usize {
+        input
+            .split('\n')
+            .map(|v| part1_evaluate_expression(parse_expression(v.as_bytes()).finish().unwrap().1))
+            .sum()
+    }
+
+    pub fn part2(input: &str) -> usize {
+        input
+            .split('\n')
+            .map(|v| part2_evaluate_expression(parse_expression(v.as_bytes()).finish().unwrap().1))
+            .sum()
+    }
+}
+
+mod day19 {
+    use std::borrow::Cow;
+
+    use crate::*;
+
+    pub enum Rules<'a> {
+        Any(Vec<Vec<usize>>),
+        Set(HashSet<Cow<'a, str>>),
+    }
+
+    pub fn validator<'a>(
+        rule: usize,
+        rules: &HashMap<usize, Rules<'a>>,
+        mut memo: HashMap<usize, HashSet<Cow<'a, str>>>,
+    ) -> &'a HashSet<Cow<'a, str>> {
+        if let Some(set) = memo.get(&rule) {
+            return set;
+        }
+
+        let validated = match rules.get(&rule).unwrap() {
+            Rules::Any(ors) => {
+                ors.into_iter().flat_map(|rls| {
+                    rls.into_iter().map(|rule| {
+                        validator(*rule, rules, memo)
+                    })
+                    .fold(HashSet::new(), |data, iter| {
+                        data.into_iter().cartesian_product(iter.into_iter())
+                        .map(|(a, b)| Cow::Owned(format!("{}{}", a, b)))
+                        .collect()
+                    })
+                }).collect::<HashSet<_>>()
+            },
+            Rules::Set(rules) => *rules,
+        };
+
+        memo.insert(rule, validated);
+
+        &validated
+    }
+
+    pub fn part1(input: &str) -> usize {
+        let mut inputs = input.split("\n\n");
+        let rules = inputs.next().unwrap();
+        let messages = inputs.next().unwrap();
+
+        let rules = rules
+            .split('\n')
+            .map(|line| {
+                let mut parts = line.split(':');
+                let rule = parts.next().unwrap().parse::<usize>().unwrap();
+                let rl = parts.next().unwrap().trim();
+                let def = if rl.contains('"') {
+                    let mut set = HashSet::new();
+                    set.insert(Cow::Borrowed(rl.trim_matches('"')));
+                    Rules::Set(set)
+                } else {
+                    Rules::Any(
+                        rl.split('|')
+                            .map(|or| {
+                                or.trim()
+                                    .split(' ')
+                                    .map(|v| v.parse::<usize>().unwrap())
+                                    .collect::<Vec<_>>()
+                            })
+                            .collect::<Vec<_>>(),
+                    )
+                };
+
+                (rule, def)
+            })
+            .collect::<HashMap<_, _>>();
+
+        let validator = validator(0, &rules, HashMap::new())
+        .into_iter()
+        .map(|cow| cow.into_owned())
+        .collect::<HashSet<_>>();
+
+        messages
+            .split('\n')
+            .filter(|message| validator.contains(message))
+            .count()
+    }
+}
+
 fn main() -> std::io::Result<()> {
     day1::day1_part1();
     day1::day1_part2();
@@ -1641,7 +1876,7 @@ fn main() -> std::io::Result<()> {
     println!("Day 12, part 1: {}", day12::day12_part1(INPUT12));
     println!("Day 12, part 2: {}", day12::day12_part2(INPUT12));
     println!("Day 13, part 1: {}", day13::day13_part1(INPUT13));
-    println!("!Day 13, part 2: {}", day13::day13_part2(INPUT13));
+    println!("Day 13, part 2: !{}", day13::day13_part2(INPUT13));
     println!("Day 14, part 1: {}", day14::day14_part1(INPUT14));
     println!("Day 15, part 1: {}", day15::day15_part1(INPUT15));
     println!("Day 15, part 2: {}", day15::day15_part2(INPUT15));
@@ -1649,6 +1884,9 @@ fn main() -> std::io::Result<()> {
     println!("Day 16, part 2: {}", day16::part2(INPUT16));
     println!("Day 17, part 1: {}", day17::part1(INPUT17));
     println!("Day 17, part 2: {}", day17::part2(INPUT17));
+    println!("Day 18, part 1: {}", day18::part1(INPUT18));
+    println!("Day 18, part 2: {}", day18::part2(INPUT18));
+    println!("Day 19, part 1: {}", day19::part1(INPUT19));
 
     Ok(())
 }
@@ -1656,6 +1894,93 @@ fn main() -> std::io::Result<()> {
 #[cfg(test)]
 mod tests {
     use crate::*;
+
+    #[test]
+    fn test_day19_part1() {
+        assert_eq!(
+            day19::part1(r#""0: 4 1 5
+1: 2 3 | 3 2
+2: 4 4 | 5 5
+3: 4 5 | 5 4
+4: "a"
+5: "b"
+
+ababbb
+bababa
+abbbab
+aaabbb
+aaaabbb""#),
+            2
+        )
+    }
+    #[test]
+    fn test_day18_part2() {
+        assert_eq!(day18::part2("2 * 3 + (4 * 5)"), 46);
+    }
+
+    #[test]
+    fn test_day18_digit() {
+        assert_eq!(day18::parse_digit("31".as_bytes()).finish().unwrap().1, 31);
+    }
+
+    #[test]
+    fn test_day18_value_just() {
+        use day18::*;
+
+        assert_eq!(
+            parse_value("311".as_bytes()).finish().unwrap().1,
+            Value::Just(311)
+        );
+    }
+
+    #[test]
+    fn test_day18_operator() {
+        use day18::*;
+
+        assert_eq!(
+            parse_operator("*".as_bytes()).finish().unwrap().1,
+            Op::Multiplication
+        )
+    }
+
+    #[test]
+    fn test_day18_parse_expression() {
+        use day18::*;
+
+        assert_eq!(
+            parse_expression("1 * 2".as_bytes()).finish().unwrap(),
+            (
+                &[][..],
+                Expression(vec![
+                    Token::Value(Value::Just(1)),
+                    Token::Op(Op::Multiplication),
+                    Token::Value(Value::Just(2))
+                ])
+            )
+        )
+    }
+
+    #[test]
+    fn test_day18_value() {
+        use day18::*;
+
+        assert_eq!(
+            parse_value("(31 + 5)".as_bytes()).finish().unwrap(),
+            (
+                (&[][..]),
+                Value::Expr(Expression(vec![
+                    Token::Value(Value::Just(31)),
+                    Token::Op(Op::Addition),
+                    Token::Value(Value::Just(5))
+                ]))
+            )
+        );
+    }
+
+    #[test]
+    fn test_day18() {
+        assert_eq!(day18::part1("1 + (2 * 3) + (4 * (5 + 6))"), 51);
+    }
 
     #[test]
     fn test_day17() {
