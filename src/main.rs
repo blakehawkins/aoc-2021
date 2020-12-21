@@ -1386,10 +1386,12 @@ mod day15 {
 mod day16 {
     use crate::*;
 
+    type Mapping<'a> = HashMap<&'a str, (RangeInclusive<usize>, RangeInclusive<usize>)>;
+
     fn parse(
         input: &str,
     ) -> (
-        HashMap<&str, (RangeInclusive<usize>, RangeInclusive<usize>)>,
+        Mapping,
         &str,
         impl Iterator<Item = impl Iterator<Item = usize> + '_> + '_,
     ) {
@@ -1446,7 +1448,7 @@ mod day16 {
     }
 
     pub fn part2(input: &str) -> usize {
-        let (valid_ranges, my_ticket, other_tickets) = parse(input);
+        let (valid_ranges, _my_ticket, other_tickets) = parse(input);
 
         let all_valid_ranges = valid_ranges.into_iter().fold(vec![], |mut vec, (_, pair)| {
             vec.push(pair.0);
@@ -1456,11 +1458,11 @@ mod day16 {
         });
 
         let other_tickets: Vec<Vec<usize>> = other_tickets.map(|v| v.collect()).collect();
-        let valid_others = other_tickets
+        let _valid_others = other_tickets
             .into_iter()
             .filter(|values| {
                 values
-                    .into_iter()
+                    .iter()
                     .all(|val| all_valid_ranges.iter().any(|range| range.contains(&val)))
             })
             .collect::<Vec<_>>();
@@ -1655,9 +1657,9 @@ mod day18 {
         alt((
             preceded(
                 tag([b'(']),
-                terminated(map(parse_expression, |v| Value::Expr(v)), tag([b')'])),
+                terminated(map(parse_expression, Value::Expr), tag([b')'])),
             ),
-            map(parse_digit, |v| Value::Just(v)),
+            map(parse_digit, Value::Just),
         ))(input)
     }
 
@@ -1666,11 +1668,11 @@ mod day18 {
             separated_list1(
                 tag([b' ']),
                 alt((
-                    map(parse_value, |v| Token::Value(v)),
-                    map(parse_operator, |v| Token::Op(v)),
+                    map(parse_value, Token::Value),
+                    map(parse_operator, Token::Op),
                 )),
             ),
-            |v| Expression(v),
+            Expression,
         )(input)
     }
 
@@ -1713,12 +1715,10 @@ mod day18 {
                 } else {
                     token
                 }
-            })
-            .collect::<Vec<_>>();
+            });
 
         let evaluated_adds =
             evaluated_parens
-                .into_iter()
                 .fold(VecDeque::new(), |mut data, iter| {
                     match iter {
                         Token::Op(op) => data.push_back(Token::Op(op)),
@@ -1766,43 +1766,44 @@ mod day18 {
 }
 
 mod day19 {
-    use std::borrow::Cow;
-
     use crate::*;
 
-    pub enum Rules<'a> {
+    #[derive(Debug)]
+    pub enum Rules {
         Any(Vec<Vec<usize>>),
-        Set(HashSet<Cow<'a, str>>),
+        Set(HashSet<String>),
     }
 
     pub fn validator<'a>(
         rule: usize,
-        rules: &HashMap<usize, Rules<'a>>,
-        mut memo: HashMap<usize, HashSet<Cow<'a, str>>>,
-    ) -> &'a HashSet<Cow<'a, str>> {
+        rules: &'a HashMap<usize, Rules>,
+        memo: &'a mut HashMap<usize, HashSet<String>>,
+    ) -> HashSet<String> {
         if let Some(set) = memo.get(&rule) {
-            return set;
+            return set.clone();
         }
 
         let validated = match rules.get(&rule).unwrap() {
             Rules::Any(ors) => {
-                ors.into_iter().flat_map(|rls| {
-                    rls.into_iter().map(|rule| {
+                ors.iter().flat_map(|rls| {
+                    rls.iter().map(|rule| {
                         validator(*rule, rules, memo)
                     })
-                    .fold(HashSet::new(), |data, iter| {
-                        data.into_iter().cartesian_product(iter.into_iter())
-                        .map(|(a, b)| Cow::Owned(format!("{}{}", a, b)))
-                        .collect()
+                    .fold(vec!["".to_string()].into_iter().collect::<HashSet<_>>(), |data, iter| {
+                        data.into_iter().cartesian_product(iter.iter())
+                        .map(|(a, b): (String, &String)| {
+                            format!("{}{}", a, b)
+                        })
+                        .collect::<HashSet<String>>()
                     })
                 }).collect::<HashSet<_>>()
             },
-            Rules::Set(rules) => *rules,
+            Rules::Set(rules) => rules.clone(),
         };
 
-        memo.insert(rule, validated);
+        memo.insert(rule, validated.clone());
 
-        &validated
+        validated
     }
 
     pub fn part1(input: &str) -> usize {
@@ -1814,11 +1815,12 @@ mod day19 {
             .split('\n')
             .map(|line| {
                 let mut parts = line.split(':');
-                let rule = parts.next().unwrap().parse::<usize>().unwrap();
+                let rule_str = parts.next().unwrap();
+                let rule = rule_str.parse::<usize>().ok().oops(&format!("Tried to parse {} on line {}", rule_str, line)).unwrap();
                 let rl = parts.next().unwrap().trim();
                 let def = if rl.contains('"') {
                     let mut set = HashSet::new();
-                    set.insert(Cow::Borrowed(rl.trim_matches('"')));
+                    set.insert(rl.trim_matches('"').into());
                     Rules::Set(set)
                 } else {
                     Rules::Any(
@@ -1837,13 +1839,12 @@ mod day19 {
             })
             .collect::<HashMap<_, _>>();
 
-        let validator = validator(0, &rules, HashMap::new())
-        .into_iter()
-        .map(|cow| cow.into_owned())
-        .collect::<HashSet<_>>();
+        let mut memo = HashMap::new();
+        let validator = validator(0, &rules, &mut memo);
 
         messages
             .split('\n')
+            .map(|v| v.to_string())
             .filter(|message| validator.contains(message))
             .count()
     }
@@ -1898,7 +1899,7 @@ mod tests {
     #[test]
     fn test_day19_part1() {
         assert_eq!(
-            day19::part1(r#""0: 4 1 5
+            day19::part1(r#"0: 4 1 5
 1: 2 3 | 3 2
 2: 4 4 | 5 5
 3: 4 5 | 5 4
@@ -1909,7 +1910,7 @@ ababbb
 bababa
 abbbab
 aaabbb
-aaaabbb""#),
+aaaabbb"#),
             2
         )
     }
