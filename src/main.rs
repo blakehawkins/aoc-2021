@@ -71,6 +71,8 @@ const INPUT18: &str = include_str!("day18.input");
 
 const INPUT19: &str = include_str!("day19.input");
 
+const INPUT20: &str = include_str!("day20.input");
+
 mod day1 {
     use crate::*;
     pub fn day1_part1() {
@@ -1706,37 +1708,32 @@ mod day18 {
     }
 
     pub fn part2_evaluate_expression(expr: Expression) -> usize {
-        let evaluated_parens = expr
-            .0
-            .into_iter()
-            .map(|token| {
-                if let Token::Value(Value::Expr(expr)) = token {
-                    Token::Value(Value::Just(part2_evaluate_expression(expr)))
-                } else {
-                    token
-                }
-            });
+        let evaluated_parens = expr.0.into_iter().map(|token| {
+            if let Token::Value(Value::Expr(expr)) = token {
+                Token::Value(Value::Just(part2_evaluate_expression(expr)))
+            } else {
+                token
+            }
+        });
 
-        let evaluated_adds =
-            evaluated_parens
-                .fold(VecDeque::new(), |mut data, iter| {
-                    match iter {
-                        Token::Op(op) => data.push_back(Token::Op(op)),
-                        Token::Value(Value::Just(val)) => {
-                            if let Some(Token::Op(Op::Addition)) = data.back() {
-                                data.pop_back();
-                                if let Some(Token::Value(Value::Just(prev))) = data.pop_back() {
-                                    data.push_back(Token::Value(Value::Just(prev + val)));
-                                }
-                            } else {
-                                data.push_back(Token::Value(Value::Just(val)));
-                            }
+        let evaluated_adds = evaluated_parens.fold(VecDeque::new(), |mut data, iter| {
+            match iter {
+                Token::Op(op) => data.push_back(Token::Op(op)),
+                Token::Value(Value::Just(val)) => {
+                    if let Some(Token::Op(Op::Addition)) = data.back() {
+                        data.pop_back();
+                        if let Some(Token::Value(Value::Just(prev))) = data.pop_back() {
+                            data.push_back(Token::Value(Value::Just(prev + val)));
                         }
-                        _ => data.push_back(iter),
+                    } else {
+                        data.push_back(Token::Value(Value::Just(val)));
                     }
+                }
+                _ => data.push_back(iter),
+            }
 
-                    data
-                });
+            data
+        });
 
         evaluated_adds
             .into_iter()
@@ -1784,20 +1781,20 @@ mod day19 {
         }
 
         let validated = match rules.get(&rule).unwrap() {
-            Rules::Any(ors) => {
-                ors.iter().flat_map(|rls| {
-                    rls.iter().map(|rule| {
-                        validator(*rule, rules, memo)
-                    })
-                    .fold(vec!["".to_string()].into_iter().collect::<HashSet<_>>(), |data, iter| {
-                        data.into_iter().cartesian_product(iter.iter())
-                        .map(|(a, b): (String, &String)| {
-                            format!("{}{}", a, b)
-                        })
-                        .collect::<HashSet<String>>()
-                    })
-                }).collect::<HashSet<_>>()
-            },
+            Rules::Any(ors) => ors
+                .iter()
+                .flat_map(|rls| {
+                    rls.iter().map(|rule| validator(*rule, rules, memo)).fold(
+                        vec!["".to_string()].into_iter().collect::<HashSet<_>>(),
+                        |data, iter| {
+                            data.into_iter()
+                                .cartesian_product(iter.iter())
+                                .map(|(a, b): (String, &String)| format!("{}{}", a, b))
+                                .collect::<HashSet<String>>()
+                        },
+                    )
+                })
+                .collect::<HashSet<_>>(),
             Rules::Set(rules) => rules.clone(),
         };
 
@@ -1806,7 +1803,7 @@ mod day19 {
         validated
     }
 
-    pub fn part1(input: &str) -> usize {
+    pub fn parse(input: &str) -> (HashMap<usize, Rules>, Vec<String>) {
         let mut inputs = input.split("\n\n");
         let rules = inputs.next().unwrap();
         let messages = inputs.next().unwrap();
@@ -1816,7 +1813,11 @@ mod day19 {
             .map(|line| {
                 let mut parts = line.split(':');
                 let rule_str = parts.next().unwrap();
-                let rule = rule_str.parse::<usize>().ok().oops(&format!("Tried to parse {} on line {}", rule_str, line)).unwrap();
+                let rule = rule_str
+                    .parse::<usize>()
+                    .ok()
+                    .oops(&format!("Tried to parse {} on line {}", rule_str, line))
+                    .unwrap();
                 let rl = parts.next().unwrap().trim();
                 let def = if rl.contains('"') {
                     let mut set = HashSet::new();
@@ -1839,14 +1840,56 @@ mod day19 {
             })
             .collect::<HashMap<_, _>>();
 
+        let messages = messages.split('\n').map(|v| v.to_string()).collect();
+
+        (rules, messages)
+    }
+
+    pub fn part1(input: &str) -> usize {
+        let (rules, messages) = parse(input);
+
         let mut memo = HashMap::new();
         let validator = validator(0, &rules, &mut memo);
 
         messages
-            .split('\n')
-            .map(|v| v.to_string())
-            .filter(|message| validator.contains(message))
+            .iter()
+            .filter(|message| validator.contains(*message))
             .count()
+    }
+
+    pub fn consumed_by_any(message: &str, _rules: &HashMap<usize, Rules>) -> bool {
+        message.chars().fold(vec![0], |rules, _ch| {
+            rules
+                .iter()
+                // Expand
+                .map(|rule| rule)
+                .cloned()
+                .collect()
+        });
+
+        false
+    }
+
+    pub fn part2(input: &str) -> usize {
+        let (mut rules, messages) = parse(input);
+
+        // Change the rules lol
+        rules.insert(8, Rules::Any(vec![vec![42], vec![42, 8]]));
+        rules.insert(11, Rules::Any(vec![vec![42, 31], vec![42, 11, 31]]));
+
+        // Match each char in succession against all available rule branches, dismissing the parsers as they fail.
+        messages
+            .iter()
+            .filter(|message| consumed_by_any(message, &rules))
+            .count()
+    }
+}
+
+mod day20 {
+    // use crate::*;
+
+    pub fn part1(_input: &str) -> u128 {
+        0
     }
 }
 
@@ -1888,6 +1931,8 @@ fn main() -> std::io::Result<()> {
     println!("Day 18, part 1: {}", day18::part1(INPUT18));
     println!("Day 18, part 2: {}", day18::part2(INPUT18));
     println!("Day 19, part 1: {}", day19::part1(INPUT19));
+    println!("Day 19, part 2: {}", day19::part2(INPUT19));
+    println!("Day 20, part 1: {}", day20::part1(INPUT20));
 
     Ok(())
 }
@@ -1899,7 +1944,8 @@ mod tests {
     #[test]
     fn test_day19_part1() {
         assert_eq!(
-            day19::part1(r#"0: 4 1 5
+            day19::part1(
+                r#"0: 4 1 5
 1: 2 3 | 3 2
 2: 4 4 | 5 5
 3: 4 5 | 5 4
@@ -1910,7 +1956,8 @@ ababbb
 bababa
 abbbab
 aaabbb
-aaaabbb"#),
+aaaabbb"#
+            ),
             2
         )
     }
