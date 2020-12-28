@@ -73,6 +73,8 @@ const INPUT19: &str = include_str!("day19.input");
 
 const INPUT20: &str = include_str!("day20.input");
 
+const INPUT21: &str = include_str!("day21.input");
+
 mod day1 {
     use crate::*;
     pub fn day1_part1() {
@@ -1858,14 +1860,7 @@ mod day19 {
     }
 
     pub fn consumed_by_any(message: &str, _rules: &HashMap<usize, Rules>) -> bool {
-        message.chars().fold(vec![0], |rules, _ch| {
-            rules
-                .iter()
-                // Expand
-                .map(|rule| rule)
-                .cloned()
-                .collect()
-        });
+        message.chars().fold(vec![0], |rules, _ch| rules.to_vec());
 
         false
     }
@@ -1886,10 +1881,177 @@ mod day19 {
 }
 
 mod day20 {
-    // use crate::*;
+    use crate::*;
 
-    pub fn part1(_input: &str) -> u128 {
-        0
+    pub fn part1(input: &str) -> u128 {
+        input
+            .split("\n\n")
+            .flat_map(|tile| {
+                let mut lines = tile.split('\n');
+
+                let tile_line = lines.next().unwrap();
+                let tile_no = tile_line[5..tile_line.len() - 1].parse::<usize>().unwrap();
+
+                let bitfield = lines.collect::<Vec<_>>();
+
+                let top = bitfield[0].to_owned();
+                let bottom = bitfield[bitfield.len() - 1].to_owned();
+                let left = bitfield
+                    .iter()
+                    .map(|line| line.chars().next().unwrap())
+                    .collect::<String>();
+
+                let right = bitfield
+                    .iter()
+                    .map(|line| line.chars().rev().next().unwrap())
+                    .collect::<String>();
+
+                vec![top, bottom, left, right]
+                    .into_iter()
+                    .map(|raw| {
+                        let rev = raw.chars().rev().collect::<String>();
+
+                        let mut both = vec![raw, rev];
+                        both.sort();
+                        let mut both = both.iter();
+
+                        format!("{}{}", both.next().unwrap(), both.next().unwrap())
+                    })
+                    .map(move |v| (v, tile_no))
+            })
+            .fold(
+                HashMap::new(),
+                |mut data: HashMap<String, Vec<usize>>, iter| {
+                    if let Some(vec) = data.get_mut(&iter.0) {
+                        vec.push(iter.1);
+                    } else {
+                        data.insert(iter.0, vec![iter.1]);
+                    }
+
+                    data
+                },
+            )
+            .into_iter()
+            .filter(|(_, v)| v.len() == 2)
+            .flat_map(|(_, v)| v.into_iter())
+            .fold(HashMap::new(), |mut data, iter| {
+                *data.entry(iter).or_insert(0) += 1;
+                data
+            })
+            .into_iter()
+            .filter(|(_, v)| *v == 2)
+            .map(|(k, _)| k as u128)
+            .product()
+    }
+}
+
+mod day21 {
+    use crate::*;
+
+    type IngredientsAndAllergens<'a> = Vec<(HashSet<&'a str>, HashSet<&'a str>)>;
+
+    fn parse_input(input: &str) -> (HashMap<&str, String>, IngredientsAndAllergens) {
+        let parsed = input
+            .split('\n')
+            .map(|line| {
+                let mut parts = line.split(" (contains ");
+                let ingredients = parts.next().unwrap().split(' ').collect::<HashSet<_>>();
+
+                let allergens = parts
+                    .next()
+                    .unwrap()
+                    .trim_end_matches(')')
+                    .split(", ")
+                    .collect::<HashSet<_>>();
+
+                (ingredients, allergens)
+            })
+            .collect::<Vec<_>>();
+
+        // Build a collection of sets, mapping each allergen to the set of possible matching ingredients.
+        let mut allergen_workspace: HashMap<String, HashSet<_>> = parsed
+            .iter()
+            .flat_map(|(ingredients, allergens)| {
+                allergens
+                    .iter()
+                    .map(move |allergen| (allergen.to_owned(), ingredients))
+            })
+            .fold(HashMap::new(), |mut data, (allergen, ingredients)| {
+                let intersection = data
+                    .get(&allergen.to_owned())
+                    .unwrap_or(&ingredients.to_owned())
+                    .intersection(ingredients)
+                    .cloned()
+                    .collect();
+
+                data.insert(allergen.to_owned(), intersection);
+
+                data
+            });
+
+        // Recurse over the collection while there are allergens with only one possible ingredient, until there are no
+        // unknowns left. Produce a mapping of ingredient to allergen.
+        let mut mapping = HashMap::new();
+        let cloned_workspace = allergen_workspace.clone();
+        let mut allergen_data: Option<(String, HashSet<_>)> = cloned_workspace
+            .iter()
+            .find(|(_, v)| v.len() == 1)
+            .map(|(key, val)| (key.to_string(), val.to_owned()));
+        while allergen_data.is_some() {
+            let mut allergen_workspace_alt = allergen_workspace.clone();
+
+            let (allergen, ingredient) = allergen_data.unwrap();
+
+            let ingredient = ingredient.iter().next().unwrap();
+            mapping.insert(ingredient.to_owned(), allergen.clone());
+
+            allergen_workspace.iter().for_each(|(allergen, _)| {
+                allergen_workspace_alt
+                    .get_mut(allergen)
+                    .unwrap()
+                    .retain(|val| val != ingredient);
+            });
+
+            allergen_workspace_alt.remove(&allergen);
+
+            allergen_data = allergen_workspace
+                .clone()
+                .iter()
+                .find(|(_, v)| v.len() == 1)
+                .map(|(key, val)| (key.to_string(), val.to_owned()));
+
+            std::mem::swap(&mut allergen_workspace, &mut allergen_workspace_alt);
+        }
+
+        (mapping, parsed)
+    }
+
+    pub fn part1(input: &str) -> usize {
+        let (mapping, parsed) = parse_input(input);
+
+        // Filter_map `ingredients` using the allergen mapping, producing a count of non-allergenic ingredients per
+        // line. Sum.
+        parsed
+            .into_iter()
+            .map(|(ingredients, _)| ingredients)
+            .map(|ingredients| {
+                ingredients
+                    .into_iter()
+                    .filter(|ingredient| mapping.get(ingredient).is_none())
+                    .count()
+            })
+            .sum()
+    }
+
+    pub fn part2(input: &str) -> String {
+        let (mapping, _) = parse_input(input);
+
+        let sorted = mapping
+            .iter()
+            .map(|(ing, all)| (all, ing))
+            .collect::<BTreeMap<_, _>>();
+
+        sorted.iter().map(|(_, ing)| ing).join(",")
     }
 }
 
@@ -1925,7 +2087,7 @@ fn main() -> std::io::Result<()> {
     println!("Day 15, part 1: {}", day15::day15_part1(INPUT15));
     println!("Day 15, part 2: {}", day15::day15_part2(INPUT15));
     println!("Day 16, part 1: {}", day16::part1(INPUT16));
-    println!("Day 16, part 2: {}", day16::part2(INPUT16));
+    println!("Day 16, part 2: !{}", day16::part2(INPUT16));
     println!("Day 17, part 1: {}", day17::part1(INPUT17));
     println!("Day 17, part 2: {}", day17::part2(INPUT17));
     println!("Day 18, part 1: {}", day18::part1(INPUT18));
@@ -1933,6 +2095,8 @@ fn main() -> std::io::Result<()> {
     println!("Day 19, part 1: {}", day19::part1(INPUT19));
     println!("Day 19, part 2: {}", day19::part2(INPUT19));
     println!("Day 20, part 1: {}", day20::part1(INPUT20));
+    println!("Day 21, part 1: {}", day21::part1(INPUT21));
+    println!("Day 21, part 2: {}", day21::part2(INPUT21));
 
     Ok(())
 }
@@ -1940,6 +2104,135 @@ fn main() -> std::io::Result<()> {
 #[cfg(test)]
 mod tests {
     use crate::*;
+
+    #[test]
+    fn test_day21_part1() {
+        assert_eq!(
+            day21::part1(
+                "mxmxvkd kfcds sqjhc nhms (contains dairy, fish)
+trh fvjkl sbzzf mxmxvkd (contains dairy)
+sqjhc fvjkl (contains soy)
+sqjhc mxmxvkd sbzzf (contains fish)"
+            ),
+            5
+        )
+    }
+
+    #[test]
+    fn test_day20_part1() {
+        assert_eq!(
+            day20::part1(
+                "Tile 2311:
+..##.#..#.
+##..#.....
+#...##..#.
+####.#...#
+##.##.###.
+##...#.###
+.#.#.#..##
+..#....#..
+###...#.#.
+..###..###
+
+Tile 1951:
+#.##...##.
+#.####...#
+.....#..##
+#...######
+.##.#....#
+.###.#####
+###.##.##.
+.###....#.
+..#.#..#.#
+#...##.#..
+
+Tile 1171:
+####...##.
+#..##.#..#
+##.#..#.#.
+.###.####.
+..###.####
+.##....##.
+.#...####.
+#.##.####.
+####..#...
+.....##...
+
+Tile 1427:
+###.##.#..
+.#..#.##..
+.#.##.#..#
+#.#.#.##.#
+....#...##
+...##..##.
+...#.#####
+.#.####.#.
+..#..###.#
+..##.#..#.
+
+Tile 1489:
+##.#.#....
+..##...#..
+.##..##...
+..#...#...
+#####...#.
+#..#.#.#.#
+...#.#.#..
+##.#...##.
+..##.##.##
+###.##.#..
+
+Tile 2473:
+#....####.
+#..#.##...
+#.##..#...
+######.#.#
+.#...#.#.#
+.#########
+.###.#..#.
+########.#
+##...##.#.
+..###.#.#.
+
+Tile 2971:
+..#.#....#
+#...###...
+#.#.###...
+##.##..#..
+.#####..##
+.#..####.#
+#..#.#..#.
+..####.###
+..#.#.###.
+...#.#.#.#
+
+Tile 2729:
+...#.#.#.#
+####.#....
+..#.#.....
+....#..#.#
+.##..##.#.
+.#.####...
+####.#.#..
+##.####...
+##..#.##..
+#.##...##.
+
+Tile 3079:
+#.#.#####.
+.#..######
+..#.......
+######....
+####.#..#.
+.#...#.##.
+#.#####.##
+..#.###...
+..#.......
+..#.###..."
+            ),
+            20899048083289
+        )
+    }
 
     #[test]
     fn test_day19_part1() {
