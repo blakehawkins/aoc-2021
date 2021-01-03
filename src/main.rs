@@ -75,6 +75,8 @@ const INPUT20: &str = include_str!("day20.input");
 
 const INPUT21: &str = include_str!("day21.input");
 
+const INPUT22: &str = include_str!("day22.input");
+
 mod day1 {
     use crate::*;
     pub fn day1_part1() {
@@ -2055,6 +2057,161 @@ mod day21 {
     }
 }
 
+mod day22 {
+    use crate::*;
+
+    pub fn part1(input: &str) -> usize {
+        let mut players = input.split("\n\n").map(|block| {
+            block
+                .split('\n')
+                .skip(1)
+                .map(|v| v.parse::<usize>().unwrap())
+                .collect::<VecDeque<_>>()
+        });
+
+        let mut p1 = players.next().unwrap();
+        let mut p2 = players.next().unwrap();
+
+        while !p1.is_empty() && !p2.is_empty() {
+            let a = p1.pop_front().unwrap();
+            let b = p2.pop_front().unwrap();
+
+            let max = a.max(b);
+            let min = a.min(b);
+
+            let winner: &mut VecDeque<_> = if a > b { &mut p1 } else { &mut p2 };
+
+            winner.push_back(max);
+            winner.push_back(min);
+        }
+
+        let winner = if !p1.is_empty() { p1 } else { p2 };
+
+        winner
+            .iter()
+            .rev()
+            .fold((1usize, 0usize), |(idx, sum), iter| {
+                (idx + 1, sum + idx * iter)
+            })
+            .1
+    }
+}
+
+mod day23 {
+    use crate::*;
+
+    use slice_deque::SliceDeque;
+
+    use rayon::prelude::*;
+
+    fn get_dest(dest: usize, max: usize, pick_ups: &[usize; 3]) -> usize {
+        if dest < 1 {
+            return get_dest(max, max, pick_ups);
+        }
+
+        if pick_ups.contains(&&dest) {
+            return get_dest(dest - 1, max, pick_ups);
+        }
+
+        dest
+    }
+
+    pub fn part1(moves: usize, input: &str) -> String {
+        let mut circle = input
+            .chars()
+            .map(|ch| ch.to_digit(10).unwrap() as usize)
+            .collect::<SliceDeque<_>>();
+
+        let max = *circle.iter().max().unwrap();
+
+        (0..moves).for_each(|_| {
+            let curr = circle.pop_front().unwrap();
+
+            let pick_ups = &[
+                circle.pop_front().unwrap(),
+                circle.pop_front().unwrap(),
+                circle.pop_front().unwrap(),
+            ];
+
+            circle.push_front(curr);
+
+            let dest = get_dest(curr - 1, max, &pick_ups);
+
+            let mid = circle.iter().position(|v| v == &dest).unwrap() + 1;
+            circle.rotate_left(mid);
+
+            pick_ups.iter().for_each(|v| circle.push_back(*v));
+
+            // Re-rotate to put curr back at the front.
+            let mid = circle.iter().position(|v| v == &curr).unwrap() + 1;
+            circle.rotate_left(mid);
+        });
+
+        while circle.front().unwrap() != &1 {
+            circle.rotate_left(1);
+        }
+
+        circle.pop_front();
+
+        circle.iter().join("")
+    }
+
+    fn part2_populate(input: &str) -> (SliceDeque<usize>, usize) {
+        let mut circle = input
+            .chars()
+            .map(|ch| ch.to_digit(10).unwrap() as usize)
+            .collect::<SliceDeque<_>>();
+
+        let max = *circle.iter().max().unwrap();
+
+        (max + 1..=1_000_000).for_each(|v| circle.push_back(v));
+
+        (circle, max)
+    }
+
+    fn part2_iter(circle: &mut SliceDeque<usize>, max: usize) {
+        let curr = circle.pop_front().unwrap();
+
+        let a = circle.pop_front().unwrap();
+        let b = circle.pop_front().unwrap();
+        let c = circle.pop_front().unwrap();
+
+        let pick_ups = &[
+            c,
+            b,
+            a,
+        ];
+
+        circle.push_front(curr);
+
+        let dest = get_dest(curr - 1, max, &pick_ups);
+        let dest_pos = circle.par_iter().position_any(|v| v == &dest).unwrap() + 1;
+
+        let _ = circle
+            .splice(dest_pos..dest_pos, pick_ups.iter().cloned())
+            .collect::<SliceDeque<_>>();
+
+        // Rotate to put curr at the front.
+        circle.rotate_left(1);
+    }
+
+    pub fn part2(moves: usize, input: &str) -> usize {
+        let (mut circle, max) = part2_populate(input);
+
+        (0..moves).for_each(|idx| {
+            if idx % 100_000 == 0 {
+                println!("{}", idx);
+            }
+            part2_iter(&mut circle, max);
+        });
+
+        let mid = circle.iter().position(|v| v == &1).unwrap() + 1;
+        circle.rotate_left(mid);
+
+        circle.pop_front().unwrap() * circle.pop_front().unwrap()
+    }
+}
+
 fn main() -> std::io::Result<()> {
     day1::day1_part1();
     day1::day1_part2();
@@ -2097,6 +2254,9 @@ fn main() -> std::io::Result<()> {
     println!("Day 20, part 1: {}", day20::part1(INPUT20));
     println!("Day 21, part 1: {}", day21::part1(INPUT21));
     println!("Day 21, part 2: {}", day21::part2(INPUT21));
+    println!("Day 22, part 1: {}", day22::part1(INPUT22));
+    println!("Day 23, part 1: {}", day23::part1(100, "739862541"));
+    println!("Day 23, part 2: {}", day23::part2(10_000_000, "739862541"));
 
     Ok(())
 }
@@ -2104,6 +2264,16 @@ fn main() -> std::io::Result<()> {
 #[cfg(test)]
 mod tests {
     use crate::*;
+
+    #[test]
+    fn test_day23_part1_light() {
+        assert_eq!(day23::part1(10, "389125467"), "92658374".to_owned())
+    }
+
+    #[test]
+    fn test_day23_part1() {
+        assert_eq!(day23::part1(100, "389125467"), "67384529".to_owned())
+    }
 
     #[test]
     fn test_day21_part1() {

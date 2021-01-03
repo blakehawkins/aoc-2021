@@ -4,8 +4,13 @@ version = "0.1.0"
 authors = ["blakeh <blakeh@palantir.com>"]
 edition = "2018"
 
+[profile.release]
+debug = true
+
 [dependencies]
 oops = "0.1"
 nom = "6.0"
 itertools = "0.9"
+rayon = "1.5"
 tinyvec = "1.1"
+slice-deque = "0.3"
