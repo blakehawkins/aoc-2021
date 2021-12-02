@@ -1,34 +1,11 @@
-use std::{
-    collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque},
-    ops::RangeInclusive,
-    str::Split,
-};
-
-use oops::Oops;
-
-use itertools::Itertools;
-use nom::multi::separated_list1;
-use nom::sequence::separated_pair;
-use nom::{
-    bytes::complete::take_while_m_n,
-    bytes::complete::{tag, take_while},
-    character::complete::one_of,
-    character::{is_alphabetic, is_digit, is_hex_digit},
-    sequence::preceded,
-};
-use nom::{Finish, IResult};
-use tinyvec::ArrayVec;
-
 const INPUT1: &str = include_str!("day1.input");
 const INPUT2: &str = include_str!("day2.input");
 
 mod day1 {
-    use crate::*;
-
     fn parse(input: &str) -> Vec<usize> {
         input
             .split('\n')
-            .filter(|v| v.len() > 0)
+            .filter(|v| !v.is_empty())
             .map(|line| line.parse::<usize>().unwrap())
             .collect()
     }
@@ -56,12 +33,10 @@ mod day1 {
 }
 
 mod day2 {
-    use crate::*;
-
     fn parse(input: &str) -> Vec<(&str, usize)> {
         input
             .split('\n')
-            .filter(|v| v.len() > 0)
+            .filter(|v| !v.is_empty())
             .map(|line| {
                 let mut parts = line.split(' ');
 
