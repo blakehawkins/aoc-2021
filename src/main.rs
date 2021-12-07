@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 const INPUT1: &str = include_str!("day1.input");
 const INPUT2: &str = include_str!("day2.input");
@@ -6,6 +6,7 @@ const INPUT3: &str = include_str!("day3.input");
 const INPUT4: &str = include_str!("day4.input");
 const INPUT5: &str = include_str!("day5.input");
 const INPUT6: &str = include_str!("day6.input");
+const INPUT7: &str = include_str!("day7.input");
 
 mod day1 {
     fn parse(input: &str) -> Vec<usize> {
@@ -426,6 +427,76 @@ mod day6 {
     }
 }
 
+mod day7 {
+    use crate::*;
+    use std::cmp::{max, min};
+
+    trait Euclidian1 {
+        fn distance(&self, other: usize) -> usize;
+    }
+
+    impl Euclidian1 for usize {
+        fn distance(&self, other: usize) -> usize {
+            max(self, &other) - min(self, &other)
+        }
+    }
+
+    fn parse(input: &str) -> Vec<usize> {
+        input
+            .split('\n')
+            .next()
+            .unwrap()
+            .split(',')
+            .map(|v| v.parse::<usize>().unwrap())
+            .collect()
+    }
+
+    pub fn part1(input: &str) -> usize {
+        // Minimize cost(pos) = sum{0position : 0positions}((0position - pos) * count_at[0position])
+        let mut map = BTreeMap::new();
+        parse(input).into_iter().for_each(|v| {
+            map.entry(v)
+                .and_modify(|v: &mut usize| *v += 1)
+                .or_insert(1);
+        });
+
+        let max = *map.keys().max().unwrap();
+
+        (0..=max)
+            .map(|idx| {
+                map.iter()
+                    .map(|(pos0, count)| pos0.distance(idx) * count)
+                    .sum()
+            })
+            .min()
+            .unwrap()
+    }
+
+    pub fn part2(input: &str) -> usize {
+        // Minimize cost(pos) = sum{0position : 0positions}(dist_fn(0position - pos) * count_at[0position])
+        let mut map = BTreeMap::new();
+        parse(input).into_iter().for_each(|v| {
+            map.entry(v)
+                .and_modify(|v: &mut usize| *v += 1)
+                .or_insert(1);
+        });
+
+        let max = *map.keys().max().unwrap();
+
+        // Arithmetic series
+        let dist_fn = |dist| dist * (dist + 1) / 2;
+
+        (0..=max)
+            .map(|idx| {
+                map.iter()
+                    .map(|(pos0, count)| dist_fn(pos0.distance(idx)) * count)
+                    .sum()
+            })
+            .min()
+            .unwrap()
+    }
+}
+
 fn main() -> std::io::Result<()> {
     println!("Day  1, part 1: {}", day1::part1(INPUT1));
     println!("Day  1, part 2: {}", day1::part2(INPUT1));
@@ -439,6 +510,8 @@ fn main() -> std::io::Result<()> {
     println!("Day  5, part 2: {}", day5::part2(INPUT5));
     println!("Day  6, part 1: {}", day6::part1(INPUT6, 80));
     println!("Day  6, part 2: {}", day6::part2(INPUT6));
+    println!("Day  7, part 1: {}", day7::part1(INPUT7));
+    println!("Day  7, part 2: {}", day7::part2(INPUT7));
 
     Ok(())
 }
