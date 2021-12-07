@@ -1,7 +1,11 @@
+use std::collections::HashMap;
+
 const INPUT1: &str = include_str!("day1.input");
 const INPUT2: &str = include_str!("day2.input");
 const INPUT3: &str = include_str!("day3.input");
 const INPUT4: &str = include_str!("day4.input");
+const INPUT5: &str = include_str!("day5.input");
+const INPUT6: &str = include_str!("day6.input");
 
 mod day1 {
     fn parse(input: &str) -> Vec<usize> {
@@ -259,6 +263,169 @@ mod day4 {
     }
 }
 
+mod day5 {
+    use crate::*;
+    use std::cmp::{max, min};
+
+    #[derive(Debug)]
+    struct LineSegment {
+        x1: usize,
+        y1: usize,
+        x2: usize,
+        y2: usize,
+        curr: (usize, usize),
+    }
+
+    impl From<&str> for LineSegment {
+        fn from(item: &str) -> LineSegment {
+            let mut leftright = item.split(" -> ");
+
+            let left = leftright
+                .next()
+                .unwrap()
+                .split(',')
+                .map(|v| v.parse::<usize>().unwrap())
+                .collect::<Vec<_>>();
+            let right = leftright
+                .next()
+                .unwrap()
+                .split(',')
+                .map(|v| v.parse::<usize>().unwrap())
+                .collect::<Vec<_>>();
+
+            let left = (left[0], left[1]);
+            let right = (right[0], right[1]);
+
+            LineSegment {
+                x1: min(left, right).0,
+                y1: min(left, right).1,
+                x2: max(left, right).0,
+                y2: max(left, right).1,
+                curr: (min(left, right).0, min(left, right).1),
+            }
+        }
+    }
+
+    impl Iterator for LineSegment {
+        type Item = (usize, usize);
+
+        fn next(&mut self) -> Option<Self::Item> {
+            let this = self.curr;
+            self.curr = if self.x1 == self.x2 {
+                (self.curr.0, self.curr.1 + 1)
+            } else if self.y1 == self.y2 {
+                (self.curr.0 + 1, self.curr.1)
+            } else if self.y2 > self.y1 {
+                (self.curr.0 + 1, self.curr.1 + 1)
+            } else {
+                (self.curr.0 + 1, self.curr.1.wrapping_sub(1))
+            };
+
+            if this.0 <= max(self.x1, self.x2) && this.1 <= max(self.y1, self.y2) {
+                return Some(this);
+            }
+
+            None
+        }
+    }
+
+    impl LineSegment {
+        fn is_axis_aligned(&self) -> bool {
+            self.x1 == self.x2 || self.y1 == self.y2
+        }
+    }
+
+    fn parse(input: &str) -> Vec<LineSegment> {
+        input
+            .split('\n')
+            .filter(|line| !line.is_empty())
+            .map(LineSegment::from)
+            .collect()
+    }
+
+    pub fn part1(input: &str) -> usize {
+        let mut map = HashMap::new();
+        parse(input)
+            .into_iter()
+            .filter(LineSegment::is_axis_aligned)
+            .map(LineSegment::into_iter)
+            .flatten()
+            .for_each(|cell| {
+                map.entry(cell).and_modify(|v| *v += 1).or_insert(1);
+            });
+
+        map.retain(|_, val| *val > 1);
+
+        map.len()
+    }
+
+    pub fn part2(input: &str) -> usize {
+        let mut map = HashMap::new();
+        parse(input)
+            .into_iter()
+            .map(LineSegment::into_iter)
+            .flatten()
+            .for_each(|cell| {
+                map.entry(cell).and_modify(|v| *v += 1).or_insert(1);
+            });
+
+        map.retain(|_, val| *val > 1);
+
+        map.len()
+    }
+}
+
+mod day6 {
+    use crate::*;
+
+    fn parse(input: &str) -> Vec<usize> {
+        input
+            .split('\n')
+            .next()
+            .unwrap()
+            .split(',')
+            .map(|v| v.parse::<usize>().unwrap())
+            .collect()
+    }
+
+    pub fn part1(input: &str, days: usize) -> usize {
+        let mut map = HashMap::new();
+        parse(input).into_iter().for_each(|days| {
+            map.entry(days).and_modify(|v| *v += 1).or_insert(1);
+        });
+
+        let mut swap = HashMap::new();
+        (0..days).for_each(|_| {
+            map.iter().for_each(|(days, count)| match days {
+                0 => {
+                    swap.entry(8)
+                        .and_modify(|v: &mut usize| *v += *count)
+                        .or_insert(*count);
+                    swap.entry(6)
+                        .and_modify(|v: &mut usize| *v += *count)
+                        .or_insert(*count);
+                }
+                v => {
+                    swap.entry(v - 1)
+                        .and_modify(|z: &mut usize| *z += *count)
+                        .or_insert(*count);
+                }
+            });
+
+            std::mem::swap(&mut map, &mut swap);
+
+            swap.clear();
+        });
+
+        map.iter()
+            .fold(0, |cumu, (_iter_key, iter_val)| cumu + iter_val)
+    }
+
+    pub fn part2(input: &str) -> usize {
+        part1(input, 256)
+    }
+}
+
 fn main() -> std::io::Result<()> {
     println!("Day  1, part 1: {}", day1::part1(INPUT1));
     println!("Day  1, part 2: {}", day1::part2(INPUT1));
@@ -268,6 +435,10 @@ fn main() -> std::io::Result<()> {
     println!("Day  3, part 2: {}", day3::part2(INPUT3));
     println!("Day  4, part 1: {}", day4::part1(INPUT4));
     println!("Day  4, part 2: {}", day4::part2(INPUT4));
+    println!("Day  5, part 1: {}", day5::part1(INPUT5));
+    println!("Day  5, part 2: {}", day5::part2(INPUT5));
+    println!("Day  6, part 1: {}", day6::part1(INPUT6, 80));
+    println!("Day  6, part 2: {}", day6::part2(INPUT6));
 
     Ok(())
 }
@@ -318,5 +489,37 @@ mod tests {
 "##;
 
         assert_eq!(day4::part1(input), 4512);
+    }
+
+    #[test]
+    fn day5_part1() {
+        let input = r##"0,9 -> 5,9
+8,0 -> 0,8
+9,4 -> 3,4
+2,2 -> 2,1
+7,0 -> 7,4
+6,4 -> 2,0
+0,9 -> 2,9
+3,4 -> 1,4
+0,0 -> 8,8
+5,5 -> 8,2
+"##;
+        assert_eq!(day5::part1(input), 5);
+    }
+
+    #[test]
+    fn day5_part2() {
+        let input = r##"0,9 -> 5,9
+8,0 -> 0,8
+9,4 -> 3,4
+2,2 -> 2,1
+7,0 -> 7,4
+6,4 -> 2,0
+0,9 -> 2,9
+3,4 -> 1,4
+0,0 -> 8,8
+5,5 -> 8,2
+"##;
+        assert_eq!(day5::part2(input), 12);
     }
 }
