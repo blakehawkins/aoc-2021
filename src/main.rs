@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 const INPUT1: &str = include_str!("day1.input");
 const INPUT2: &str = include_str!("day2.input");
@@ -7,6 +7,7 @@ const INPUT4: &str = include_str!("day4.input");
 const INPUT5: &str = include_str!("day5.input");
 const INPUT6: &str = include_str!("day6.input");
 const INPUT7: &str = include_str!("day7.input");
+const INPUT8: &str = include_str!("day8.input");
 
 mod day1 {
     fn parse(input: &str) -> Vec<usize> {
@@ -497,6 +498,189 @@ mod day7 {
     }
 }
 
+mod day8 {
+    use crate::*;
+    struct DigitSignalDecoder<'a> {
+        digit_encodings: HashMap<&'a DigitSignal, u8>,
+    }
+
+    impl<'a> DigitSignalDecoder<'a> {
+        fn new(signals: &'a [DigitSignal]) -> Self {
+            let mut digit_encodings = HashMap::new();
+
+            signals.iter().for_each(|signal| match signal.segments() {
+                2 => {
+                    digit_encodings.insert(signal, 1);
+                }
+                3 => {
+                    digit_encodings.insert(signal, 7);
+                }
+                4 => {
+                    digit_encodings.insert(signal, 4);
+                }
+                7 => {
+                    digit_encodings.insert(signal, 8);
+                }
+                _ => {}
+            });
+
+            // Rules:
+            // - Signals with 5 segments: { 2, 3, 5 }. The one that has matches '1' signal's segments is 3.
+            // - Signals with 6 segments: { 0, 6, 9 }. The '3' signal plus one other segment is 9. That segment is 'b'.
+            // - The 5-segment signal with 'b' is 5. The remaining 5-segment signal is 2.
+            // - The 6-segment signal that is not nine and has all of 5's segments is 6.
+            // - The remaining signal is 0.
+
+            let sig3 = signals
+                .iter()
+                .filter(|signal| signal.segments() == 5)
+                .find(|signal| {
+                    let sig1 = digit_encodings
+                        .iter()
+                        .find(|(_, val)| **val == 1)
+                        .unwrap()
+                        .0;
+
+                    sig1.data.iter().all(|seg| signal.data.contains(seg))
+                })
+                .unwrap();
+
+            digit_encodings.insert(sig3, 3);
+
+            let sig9 = signals
+                .iter()
+                .filter(|signal| signal.segments() == 6)
+                .find(|signal| sig3.data.iter().all(|seg| signal.data.contains(seg)))
+                .unwrap();
+
+            digit_encodings.insert(sig9, 9);
+
+            let sig9_set = sig9.data.iter().collect::<HashSet<_>>();
+            let sig3_set = sig3.data.iter().collect::<HashSet<_>>();
+            let b = sig9_set.difference(&sig3_set).into_iter().next().unwrap();
+
+            let sig5 = signals
+                .iter()
+                .filter(|signal| signal.segments() == 5)
+                .find(|signal| signal.data.iter().any(|seg| seg == *b))
+                .unwrap();
+
+            digit_encodings.insert(sig5, 5);
+
+            let sig2 = signals
+                .iter()
+                .filter(|signal| signal.segments() == 5)
+                .find(|signal| *signal != sig3 && *signal != sig5)
+                .unwrap();
+
+            digit_encodings.insert(sig2, 2);
+
+            let sig6 = signals
+                .iter()
+                .filter(|signal| signal.segments() == 6 && *signal != sig9)
+                .find(|signal| sig5.data.iter().all(|seg| signal.data.contains(seg)))
+                .unwrap();
+
+            digit_encodings.insert(sig6, 6);
+
+            let sig0 = signals
+                .iter()
+                .find(|signal| digit_encodings.get(signal).is_none())
+                .unwrap();
+
+            digit_encodings.insert(sig0, 0);
+
+            DigitSignalDecoder { digit_encodings }
+        }
+
+        fn decode(&mut self, outputs: &'a [DigitSignal]) -> usize {
+            let vals = outputs
+                .iter()
+                .map(|signal| self.digit_encodings.get(signal).unwrap())
+                .collect::<Vec<_>>();
+
+            *vals[0] as usize * 1000
+                + *vals[1] as usize * 100
+                + *vals[2] as usize * 10
+                + *vals[3] as usize
+        }
+    }
+
+    #[derive(PartialEq, Hash, Eq, Debug)]
+    struct DigitSignal {
+        data: Vec<char>,
+    }
+
+    impl From<Vec<char>> for DigitSignal {
+        fn from(data: Vec<char>) -> Self {
+            DigitSignal { data }
+        }
+    }
+
+    impl DigitSignal {
+        fn segments(&self) -> usize {
+            self.data.len()
+        }
+    }
+
+    fn parse(input: &str) -> Vec<(Vec<DigitSignal>, Vec<DigitSignal>)> {
+        input
+            .split('\n')
+            .filter(|line| !line.is_empty())
+            .map(|line| {
+                let mut halves = line.split(" | ");
+
+                let into_digital_signal = |str: &str| {
+                    let mut bytes = str.chars().collect::<Vec<_>>();
+
+                    bytes.sort_unstable();
+
+                    bytes.into()
+                };
+
+                let lhs = halves
+                    .next()
+                    .unwrap()
+                    .split(' ')
+                    .map(into_digital_signal)
+                    .collect::<Vec<_>>();
+                let rhs = halves
+                    .next()
+                    .unwrap()
+                    .split(' ')
+                    .map(into_digital_signal)
+                    .collect::<Vec<_>>();
+
+                (lhs, rhs)
+            })
+            .collect()
+    }
+
+    pub fn part1(input: &str) -> usize {
+        parse(input)
+            .into_iter()
+            .map(|(_, output)| output)
+            .map(|output| {
+                output
+                    .into_iter()
+                    .filter(|v| [2, 4, 3, 7].iter().any(|z| v.segments() == *z))
+            })
+            .flatten()
+            .count()
+    }
+
+    pub fn part2(input: &str) -> usize {
+        parse(input)
+            .into_iter()
+            .map(|(signals, outputs)| {
+                let mut decoder = DigitSignalDecoder::new(&signals);
+
+                decoder.decode(&outputs)
+            })
+            .sum()
+    }
+}
+
 fn main() -> std::io::Result<()> {
     println!("Day  1, part 1: {}", day1::part1(INPUT1));
     println!("Day  1, part 2: {}", day1::part2(INPUT1));
@@ -512,6 +696,8 @@ fn main() -> std::io::Result<()> {
     println!("Day  6, part 2: {}", day6::part2(INPUT6));
     println!("Day  7, part 1: {}", day7::part1(INPUT7));
     println!("Day  7, part 2: {}", day7::part2(INPUT7));
+    println!("Day  8, part 1: {}", day8::part1(INPUT8));
+    println!("Day  8, part 2: {}", day8::part2(INPUT8));
 
     Ok(())
 }
