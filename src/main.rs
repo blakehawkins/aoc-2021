@@ -8,6 +8,7 @@ const INPUT5: &str = include_str!("day5.input");
 const INPUT6: &str = include_str!("day6.input");
 const INPUT7: &str = include_str!("day7.input");
 const INPUT8: &str = include_str!("day8.input");
+const INPUT9: &str = include_str!("day9.input");
 
 mod day1 {
     fn parse(input: &str) -> Vec<usize> {
@@ -681,6 +682,173 @@ mod day8 {
     }
 }
 
+mod day9 {
+    use crate::*;
+    use std::collections::BTreeSet;
+
+    type Index = (usize, usize);
+
+    trait Paddable<T, U> {
+        fn padded(&self, pad: U) -> T;
+    }
+
+    impl Paddable<Vec<u8>, u8> for Vec<u8> {
+        fn padded(&self, pad: u8) -> Vec<u8> {
+            [pad]
+                .iter()
+                .chain(self.iter())
+                .chain([pad].iter())
+                .cloned()
+                .collect()
+        }
+    }
+
+    impl Paddable<Vec<Vec<u8>>, u8> for Vec<Vec<u8>> {
+        fn padded(&self, pad: u8) -> Vec<Vec<u8>> {
+            let inner_padded = self.iter().map(|line| line.padded(9)).collect::<Vec<_>>();
+            let len = inner_padded[0].len();
+
+            vec![vec![pad; len]]
+                .iter()
+                .cloned()
+                .chain(inner_padded)
+                .chain(vec![vec![pad; len]].iter().cloned())
+                .collect()
+        }
+    }
+
+    fn parse(input: &str) -> Vec<Vec<u8>> {
+        input
+            .split('\n')
+            .filter(|line| !line.is_empty())
+            .map(|line| {
+                line.bytes()
+                    .map(|ch| std::str::from_utf8(&[ch]).unwrap().parse::<u8>().unwrap())
+                    .collect()
+            })
+            .collect()
+    }
+
+    fn part1_memo(
+        memo: &mut HashMap<Index, (Index, u8)>,
+        input: &[Vec<u8>],
+        idx: Index,
+    ) -> (Index, u8) {
+        if memo.contains_key(&idx) {
+            return *memo.get(&idx).unwrap();
+        }
+
+        memo.entry(idx).or_insert((idx, 9));
+
+        let max_idx = (input.len() - 1, input[0].len() - 1);
+
+        let local_min = [
+            (idx.0 - 1, idx.1),
+            (idx.0 + 1, idx.1),
+            (idx.0, idx.1 - 1),
+            (idx.0, idx.1 + 1),
+        ]
+        .iter()
+        .filter(|neighbor_index| {
+            neighbor_index.0 > 0
+                && neighbor_index.1 > 0
+                && neighbor_index.0 < max_idx.0
+                && neighbor_index.1 < max_idx.1
+                && input[neighbor_index.0][neighbor_index.1] <= input[idx.0][idx.1]
+        })
+        .map(|idx| part1_memo(memo, input, *idx))
+        .min_by(|v1, v2| v1.1.cmp(&v2.1))
+        .unwrap_or_else(|| ((idx.0, idx.1), input[idx.0][idx.1]));
+
+        memo.insert(idx, local_min);
+
+        local_min
+    }
+
+    fn calculate_mins_and_padded(input: &str) -> (HashSet<Index>, Vec<Vec<u8>>) {
+        let mut memo: HashMap<Index, (Index, u8)> = HashMap::new();
+
+        let padded = parse(input).padded(9);
+
+        let mut mins = HashSet::new();
+
+        (1..padded.len() - 1).for_each(|ii| {
+            (1..padded[0].len() - 1).for_each(|jj| {
+                mins.insert(part1_memo(&mut memo, &padded, (ii, jj)).0);
+            });
+        });
+
+        (mins, padded)
+    }
+
+    pub fn part1(input: &str) -> usize {
+        let (mins, padded) = calculate_mins_and_padded(input);
+
+        mins.into_iter()
+            .map(|loc| padded[loc.0][loc.1] as usize + 1)
+            .sum()
+    }
+
+    pub fn part2(input: &str) -> usize {
+        let (mins, padded) = calculate_mins_and_padded(input);
+
+        let max_idx = (padded.len(), padded[0].len());
+
+        let mut basin_sizes = mins
+            .into_iter()
+            .map(|min| {
+                let mut working_set = HashSet::new();
+                let mut working_frontier = BTreeSet::new();
+                working_frontier.insert(min);
+
+                while !working_frontier.is_empty() {
+                    let popped = *{
+                        let v = working_frontier.iter().next().unwrap();
+
+                        v
+                    };
+
+                    working_frontier.remove(&popped);
+                    working_set.insert(popped);
+
+                    [
+                        (popped.0 - 1, popped.1),
+                        (popped.0 + 1, popped.1),
+                        (popped.0, popped.1 - 1),
+                        (popped.0, popped.1 + 1),
+                    ]
+                    .iter()
+                    .filter(|idx| {
+                        idx.0 > 0
+                            && idx.1 > 0
+                            && idx.0 < max_idx.0
+                            && idx.1 < max_idx.1
+                            && !working_set.contains(idx)
+                            && padded[idx.0][idx.1] < 9
+                    })
+                    .for_each(|idx| {
+                        working_frontier.insert(*idx);
+                    })
+                }
+
+                working_set.len()
+            })
+            .collect::<Vec<_>>();
+
+        basin_sizes.sort_unstable();
+
+        let mut iter = basin_sizes.iter().rev();
+
+        let (large0, large1, large2) = (
+            iter.next().unwrap(),
+            iter.next().unwrap(),
+            iter.next().unwrap(),
+        );
+
+        large0 * large1 * large2
+    }
+}
+
 fn main() -> std::io::Result<()> {
     println!("Day  1, part 1: {}", day1::part1(INPUT1));
     println!("Day  1, part 2: {}", day1::part2(INPUT1));
@@ -698,6 +866,8 @@ fn main() -> std::io::Result<()> {
     println!("Day  7, part 2: {}", day7::part2(INPUT7));
     println!("Day  8, part 1: {}", day8::part1(INPUT8));
     println!("Day  8, part 2: {}", day8::part2(INPUT8));
+    println!("Day  9, part 1: {}", day9::part1(INPUT9));
+    println!("Day  9, part 2: {}", day9::part2(INPUT9));
 
     Ok(())
 }
@@ -780,5 +950,28 @@ mod tests {
 5,5 -> 8,2
 "##;
         assert_eq!(day5::part2(input), 12);
+    }
+
+    #[test]
+    fn day9_part1() {
+        let input = r##"2199943210
+3987894921
+9856789892
+8767896789
+9899965678
+"##;
+
+        assert_eq!(day9::part1(input), 15);
+    }
+
+    #[test]
+    fn day9_part2() {
+        let input = r##"2199943210
+3987894921
+9856789892
+8767896789
+9899965678"##;
+
+        assert_eq!(day9::part2(input), 1134);
     }
 }
