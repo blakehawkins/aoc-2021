@@ -9,6 +9,7 @@ const INPUT6: &str = include_str!("day6.input");
 const INPUT7: &str = include_str!("day7.input");
 const INPUT8: &str = include_str!("day8.input");
 const INPUT9: &str = include_str!("day9.input");
+const INPUT10: &str = include_str!("day10.input");
 
 mod day1 {
     fn parse(input: &str) -> Vec<usize> {
@@ -849,6 +850,105 @@ mod day9 {
     }
 }
 
+mod day10 {
+    fn parse(input: &str) -> Vec<&str> {
+        input.split('\n').filter(|line| !line.is_empty()).collect()
+    }
+
+    trait ParenMatchable<T> {
+        fn open_for(&self) -> Option<&T>;
+        fn close_for(&self) -> Option<&T>;
+    }
+
+    impl ParenMatchable<char> for char {
+        fn open_for(&self) -> Option<&char> {
+            match self {
+                ')' => Some(&'('),
+                ']' => Some(&'['),
+                '}' => Some(&'{'),
+                '>' => Some(&'<'),
+                _ => None,
+            }
+        }
+
+        fn close_for(&self) -> Option<&char> {
+            match self {
+                '(' => Some(&')'),
+                '[' => Some(&']'),
+                '{' => Some(&'}'),
+                '<' => Some(&'>'),
+                _ => None,
+            }
+        }
+    }
+
+    fn determine_corruptions(input: &str) -> Vec<(Vec<char>, Option<char>)> {
+        parse(input)
+            .into_iter()
+            .map(|line| {
+                line.chars()
+                    .fold((vec![], None), |(mut stack, status), ch| {
+                        if status.is_some() {
+                            return (stack, status);
+                        }
+
+                        match ch {
+                            '(' | '{' | '<' | '[' => {
+                                stack.push(ch);
+                                (stack, None)
+                            }
+                            v if stack.is_empty()
+                                || (stack.last().is_some() && stack.last() == v.open_for()) =>
+                            {
+                                stack.pop();
+                                (stack, None)
+                            }
+                            _ => (stack, Some(ch)),
+                        }
+                    })
+            })
+            .collect()
+    }
+
+    pub fn part1(input: &str) -> usize {
+        determine_corruptions(input)
+            .into_iter()
+            .filter_map(|(_, v)| v)
+            .map(|v| match v {
+                ')' => 3,
+                ']' => 57,
+                '}' => 1197,
+                '>' => 25137,
+                _ => panic!("unexpected corruption"),
+            })
+            .sum()
+    }
+
+    pub fn part2(input: &str) -> usize {
+        let mut scores = determine_corruptions(input)
+            .into_iter()
+            .filter(|(_, corruption)| corruption.is_none())
+            .map(|(stack, _)| stack)
+            .map(|stack| {
+                stack
+                    .into_iter()
+                    .rev()
+                    .fold(0, |acc, ch| match ch.close_for() {
+                        Some('>') => 5 * acc + 4,
+                        Some(']') => 5 * acc + 2,
+                        Some('}') => 5 * acc + 3,
+                        Some(')') => 5 * acc + 1,
+                        _ => panic!("Unexpected closing bracket"),
+                    })
+            })
+            .collect::<Vec<_>>();
+
+        scores.sort_unstable();
+
+        scores[scores.len() / 2]
+    }
+}
+
 fn main() -> std::io::Result<()> {
     println!("Day  1, part 1: {}", day1::part1(INPUT1));
     println!("Day  1, part 2: {}", day1::part2(INPUT1));
@@ -868,6 +968,8 @@ fn main() -> std::io::Result<()> {
     println!("Day  8, part 2: {}", day8::part2(INPUT8));
     println!("Day  9, part 1: {}", day9::part1(INPUT9));
     println!("Day  9, part 2: {}", day9::part2(INPUT9));
+    println!("Day 10, part 1: {}", day10::part1(INPUT10));
+    println!("Day 10, part 2: {}", day10::part2(INPUT10));
 
     Ok(())
 }
@@ -973,5 +1075,21 @@ mod tests {
 9899965678"##;
 
         assert_eq!(day9::part2(input), 1134);
+    }
+
+    #[test]
+    fn day10_part1() {
+        let input = r##"[({(<(())[]>[[{[]{<()<>>
+[(()[<>])]({[<{<<[]>>(
+{([(<{}[<>[]}>{[]{[(<()>
+(((({<>}<{<{<>}{[]{[]{}
+[[<[([]))<([[{}[[()]]]
+[{[{({}]{}}([{[{{{}}([]
+{<[[]]>}<{[{[{[]{()[[[]
+[<(<(<(<{}))><([]([]()
+<{([([[(<>()){}]>(<<{{
+<{([{{}}[<[[[<>{}]]]>[]]"##;
+
+        assert_eq!(day10::part1(input), 26397);
     }
 }
