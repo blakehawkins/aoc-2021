@@ -10,6 +10,8 @@ const INPUT7: &str = include_str!("day7.input");
 const INPUT8: &str = include_str!("day8.input");
 const INPUT9: &str = include_str!("day9.input");
 const INPUT10: &str = include_str!("day10.input");
+const INPUT11: &str = include_str!("day11.input");
+const INPUT12: &str = include_str!("day12.input");
 
 mod day1 {
     fn parse(input: &str) -> Vec<usize> {
@@ -949,6 +951,138 @@ mod day10 {
     }
 }
 
+mod day11 {
+    use itertools::Itertools;
+    use std::cell::RefCell;
+    use std::convert::TryInto;
+
+    struct Board {
+        board: Vec<Vec<u8>>,
+    }
+
+    impl Board {
+        fn sizes(&self) -> (usize, usize) {
+            (self.board.len(), self.board[0].len())
+        }
+
+        fn count_flashes(&self) -> usize {
+            let (y_len, x_len) = self.sizes();
+
+            (0..y_len)
+                .cartesian_product(0..x_len)
+                .map(|(yy, xx)| self.board[yy][xx])
+                .filter(|v| v >= &10)
+                .count()
+        }
+
+        fn neighbors(&self, idx: (isize, isize)) -> Vec<(isize, isize)> {
+            let (y_len, x_len) = self.sizes();
+
+            [
+                (idx.0 - 1, idx.1),
+                (idx.0 + 1, idx.1),
+                (idx.0, idx.1 - 1),
+                (idx.0, idx.1 + 1),
+                (idx.0 - 1, idx.1 + 1),
+                (idx.0 - 1, idx.1 - 1),
+                (idx.0 + 1, idx.1 + 1),
+                (idx.0 + 1, idx.1 - 1),
+            ]
+            .iter()
+            .filter(|neighbor_index| {
+                neighbor_index.0 >= 0
+                    && neighbor_index.0 < y_len.try_into().unwrap()
+                    && neighbor_index.1 >= 0
+                    && neighbor_index.1 < x_len.try_into().unwrap()
+                    && self.board[neighbor_index.0 as usize][neighbor_index.1 as usize] < 10
+            })
+            .cloned()
+            .collect()
+        }
+
+        fn step(&mut self) -> usize {
+            let (y_len, x_len) = self.sizes();
+
+            (0..y_len).cartesian_product(0..x_len).for_each(|(yy, xx)| {
+                let mut frontier = vec![(yy, xx)];
+
+                while let Some(idx) = frontier.pop() {
+                    self.board[idx.0][idx.1] += 1;
+                    if self.board[idx.0][idx.1] == 10 {
+                        self.neighbors((idx.0 as isize, idx.1 as isize))
+                            .into_iter()
+                            .for_each(|idx| {
+                                frontier.push((idx.0 as usize, idx.1 as usize));
+                            });
+                    }
+                }
+            });
+
+            let flashes = self.count_flashes();
+
+            (0..y_len).cartesian_product(0..x_len).for_each(|(yy, xx)| {
+                if self.board[yy][xx] > 9 {
+                    self.board[yy][xx] = 0;
+                }
+            });
+
+            flashes
+        }
+    }
+
+    fn parse(input: &str) -> Board {
+        let board = input
+            .split('\n')
+            .filter(|line| !line.is_empty())
+            .map(|line| {
+                line.split("")
+                    .filter(|ch| !ch.is_empty())
+                    .map(|ch| ch.parse::<u8>().unwrap())
+                    .collect()
+            })
+            .collect();
+
+        Board { board }
+    }
+
+    pub fn part1(input: &str) -> usize {
+        let mut board = parse(input);
+
+        (0..100).fold(0, |accum, _| accum + board.step())
+    }
+
+    pub fn part2(input: &str) -> usize {
+        let board = RefCell::new(parse(input));
+
+        (1..)
+            .map(|idx| (idx, &board))
+            .find(|(_, board)| {
+                let mut board = board.borrow_mut();
+                board.step() == board.sizes().0 * board.sizes().1
+            })
+            .unwrap()
+            .0
+    }
+}
+
+mod day12 {
+    fn parse(input: &str) -> Vec<char> {
+        unimplemented!()
+    }
+
+    pub fn part1(input: &str) -> usize {
+        parse(input);
+
+        0
+    }
+
+    pub fn part2(input: &str) -> usize {
+        parse(input);
+
+        0
+    }
+}
+
 fn main() -> std::io::Result<()> {
     println!("Day  1, part 1: {}", day1::part1(INPUT1));
     println!("Day  1, part 2: {}", day1::part2(INPUT1));
@@ -970,6 +1104,10 @@ fn main() -> std::io::Result<()> {
     println!("Day  9, part 2: {}", day9::part2(INPUT9));
     println!("Day 10, part 1: {}", day10::part1(INPUT10));
     println!("Day 10, part 2: {}", day10::part2(INPUT10));
+    println!("Day 11, part 1: {}", day11::part1(INPUT11));
+    println!("Day 11, part 2: {}", day11::part2(INPUT11));
+    println!("Day 12, part 1: {}", day12::part1(INPUT12));
+    println!("Day 12, part 2: {}", day12::part2(INPUT12));
 
     Ok(())
 }
@@ -1091,5 +1229,37 @@ mod tests {
 <{([{{}}[<[[[<>{}]]]>[]]"##;
 
         assert_eq!(day10::part1(input), 26397);
+    }
+
+    #[test]
+    fn day11_part1() {
+        let input = r##"5483143223
+2745854711
+5264556173
+6141336146
+6357385478
+4167524645
+2176841721
+6882881134
+4846848554
+5283751526"##;
+
+        assert_eq!(day11::part1(input), 1656);
+    }
+
+    #[test]
+    fn day11_part2() {
+        let input = r##"5483143223
+2745854711
+5264556173
+6141336146
+6357385478
+4167524645
+2176841721
+6882881134
+4846848554
+5283751526"##;
+
+        assert_eq!(day11::part2(input), 195);
     }
 }
