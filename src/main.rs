@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 
 const INPUT1: &str = include_str!("day1.input");
 const INPUT2: &str = include_str!("day2.input");
@@ -1066,20 +1066,146 @@ mod day11 {
 }
 
 mod day12 {
-    fn parse(input: &str) -> Vec<char> {
-        unimplemented!()
+    use crate::*;
+    use petgraph::graphmap::UnGraphMap;
+
+    #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
+    enum CaveCell {
+        Start,
+        End,
+        Big((u8, u8)),
+        Small((u8, u8)),
+    }
+
+    trait CaveCellTakeable {
+        fn can_take(&self, other: &CaveCell) -> bool;
+    }
+
+    impl CaveCellTakeable for Vec<CaveCell> {
+        fn can_take(&self, other: &CaveCell) -> bool {
+            match *other {
+                CaveCell::Start => true,
+                CaveCell::End => false,
+                CaveCell::Big(_) => true,
+                CaveCell::Small(_) => {
+                    let mut sorted = self
+                        .iter()
+                        .chain([other])
+                        .filter(|it| matches!(it, CaveCell::Small(_)))
+                        .collect::<Vec<_>>();
+
+                    sorted.sort();
+
+                    let result = sorted
+                        .windows(2)
+                        .filter(|cells| cells[0] == cells[1])
+                        .count()
+                        < 2;
+
+                    result
+                }
+            }
+        }
+    }
+
+    impl From<Vec<u8>> for CaveCell {
+        fn from(item: Vec<u8>) -> CaveCell {
+            match item {
+                start if start == "start".bytes().collect::<Vec<_>>() => CaveCell::Start,
+                end if end == "end".bytes().collect::<Vec<_>>() => CaveCell::End,
+                v if v.iter().all(|by| (*by as char).is_uppercase()) => CaveCell::Big((v[0], v[1])),
+                v => CaveCell::Small((v[0], v[1])),
+            }
+        }
+    }
+
+    impl Default for CaveCell {
+        fn default() -> Self {
+            CaveCell::Start
+        }
+    }
+
+    struct CaveSystem {
+        graph: UnGraphMap<CaveCell, ()>,
+    }
+
+    fn parse(input: &str) -> CaveSystem {
+        let edges = input
+            .split('\n')
+            .filter(|line| !line.is_empty())
+            .map(|line| {
+                let mut split = line.split('-');
+
+                (
+                    split.next().unwrap().bytes().collect::<Vec<_>>().into(),
+                    split.next().unwrap().bytes().collect::<Vec<_>>().into(),
+                )
+            })
+            .collect::<Vec<(CaveCell, CaveCell)>>();
+
+        let graph = UnGraphMap::<CaveCell, ()>::from_edges(edges);
+
+        CaveSystem { graph }
     }
 
     pub fn part1(input: &str) -> usize {
-        parse(input);
+        let graph = parse(input).graph;
 
-        0
+        let mut resolved_paths = HashSet::new();
+        let mut queue = VecDeque::new();
+
+        queue.push_back(vec![CaveCell::End]);
+
+        while let Some(unfinished_path) = queue.pop_front() {
+            graph
+                .neighbors(*unfinished_path.last().unwrap())
+                .filter(|neighbor| match neighbor {
+                    CaveCell::Big(_) => true,
+                    n => !unfinished_path.contains(n),
+                })
+                .for_each(|neighbor| match neighbor {
+                    CaveCell::Start => {
+                        resolved_paths.insert(unfinished_path.clone());
+                    }
+                    non_terminal_neighbor => {
+                        let mut copy = unfinished_path.clone();
+                        copy.push(non_terminal_neighbor);
+                        queue.push_back(copy);
+                    }
+                });
+        }
+
+        resolved_paths.len()
     }
 
     pub fn part2(input: &str) -> usize {
-        parse(input);
+        let graph = parse(input).graph;
 
-        0
+        let mut resolved_paths = HashSet::new();
+        let mut queue = VecDeque::new();
+
+        queue.push_back(vec![CaveCell::End]);
+
+        while let Some(unfinished_path) = queue.pop_front() {
+            graph
+                .neighbors(*unfinished_path.last().unwrap())
+                .filter(|neighbor| match neighbor {
+                    CaveCell::Big(_) => true,
+                    n => unfinished_path.can_take(n),
+                })
+                .for_each(|neighbor| match neighbor {
+                    CaveCell::Start => {
+                        resolved_paths.insert(unfinished_path.clone());
+                    }
+                    non_terminal_neighbor => {
+                        let mut copy = unfinished_path.clone();
+                        copy.push(non_terminal_neighbor);
+                        queue.push_back(copy);
+                    }
+                });
+        }
+
+        resolved_paths.len()
     }
 }
 
