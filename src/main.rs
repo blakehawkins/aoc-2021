@@ -13,6 +13,7 @@ const INPUT10: &str = include_str!("day10.input");
 const INPUT11: &str = include_str!("day11.input");
 const INPUT12: &str = include_str!("day12.input");
 const INPUT13: &str = include_str!("day13.input");
+const INPUT14: &str = include_str!("day14.input");
 
 mod day1 {
     fn parse(input: &str) -> Vec<usize> {
@@ -1211,20 +1212,172 @@ mod day12 {
 }
 
 mod day13 {
+    use itertools::Itertools;
+
+    enum FoldAxis {
+        X,
+        Y,
+    }
+
+    impl From<char> for FoldAxis {
+        fn from(item: char) -> Self {
+            match item {
+                'x' => FoldAxis::X,
+                'y' => FoldAxis::Y,
+                _ => panic!("Unexpected fold axis"),
+            }
+        }
+    }
+
+    struct FoldSpec {
+        axis: FoldAxis,
+        _offset: usize,
+    }
+
+    impl From<&str> for FoldSpec {
+        fn from(item: &str) -> Self {
+            FoldSpec {
+                axis: item.chars().next().unwrap().into(),
+                _offset: item[2..].parse().unwrap(),
+            }
+        }
+    }
+
+    trait PaperFoldable<T> {
+        fn paper_fold(&self, foldspec: &FoldSpec) -> T;
+
+        fn count_ones(&self) -> usize;
+    }
+
+    impl PaperFoldable<Vec<Vec<usize>>> for Vec<Vec<usize>> {
+        fn paper_fold(&self, foldspec: &FoldSpec) -> Vec<Vec<usize>> {
+            let (x_dim, y_dim) = (self.len(), self[0].len());
+
+            let mat = |x_dim, y_dim| {
+                let mut vec = Vec::new();
+
+                while vec.len() < x_dim {
+                    vec.push(vec![0; y_dim]);
+                }
+
+                vec
+            };
+
+            match foldspec.axis {
+                FoldAxis::X => {
+                    let mut mat = mat(x_dim / 2, y_dim);
+
+                    (0..(x_dim / 2))
+                        .cartesian_product(0..y_dim)
+                        .for_each(|(xx, yy)| {
+                            mat[xx][yy] = self[xx][yy] | self[x_dim - xx - 1][yy];
+                        });
+
+                    mat
+                }
+                FoldAxis::Y => {
+                    let mut mat = mat(x_dim, y_dim / 2);
+
+                    (0..x_dim)
+                        .cartesian_product(0..(y_dim / 2))
+                        .for_each(|(xx, yy)| {
+                            mat[xx][yy] = self[xx][yy] | self[xx][y_dim - yy - 1];
+                        });
+
+                    mat
+                }
+            }
+        }
+
+        fn count_ones(&self) -> usize {
+            self.iter().map(|vec| vec.iter().sum::<usize>()).sum()
+        }
+    }
+
+    fn parse(input: &str) -> (Vec<Vec<usize>>, Vec<FoldSpec>) {
+        let mut halves = input.split("\n\n");
+
+        let mut matrix = halves
+            .next()
+            .unwrap()
+            .split('\n')
+            .map(|line| {
+                let mut vals = line.split(',').map(|v| v.parse::<usize>().unwrap());
+
+                (vals.next().unwrap(), vals.next().unwrap())
+            })
+            .fold(vec![], |mut accum, iter| {
+                while iter.0 >= accum.len() {
+                    accum.push(vec![0; iter.1]);
+                }
+
+                if iter.1 >= accum[iter.0].len() {
+                    accum[iter.0].resize(iter.1 + 1, 0);
+                }
+
+                accum[iter.0][iter.1] = 1;
+
+                accum
+            });
+
+        let largest = matrix.iter().map(|vec| vec.len()).max().unwrap();
+
+        matrix.iter_mut().for_each(|vec| {
+            if vec.len() < largest {
+                vec.resize(largest, 0);
+            }
+        });
+
+        let fold_specs = halves
+            .next()
+            .unwrap()
+            .split('\n')
+            .filter(|line| !line.is_empty())
+            .map(|str| &str["fold along ".len()..])
+            .map(FoldSpec::from)
+            .collect();
+
+        (matrix, fold_specs)
+    }
+
+    pub fn part1(input: &str) -> usize {
+        let (matrix, folds) = parse(input);
+
+        matrix.paper_fold(&folds[0]).count_ones()
+    }
+
+    pub fn part2(input: &str) -> usize {
+        let (matrix, folds) = parse(input);
+
+        let result = folds
+            .into_iter()
+            .fold(matrix, |accum, iter| accum.paper_fold(&iter));
+
+        println!("{:?}", result);
+
+        0
+    }
+}
+
+mod day14 {
     fn parse(input: &str) -> Vec<usize> {
-        unimplemented!()
+        input
+            .split('\n')
+            .filter(|line| !line.is_empty())
+            .map(|line| line.parse::<usize>().unwrap())
+            .collect()
     }
 
     pub fn part1(input: &str) -> usize {
         parse(input);
 
-        unimplemented!()
+        0
     }
 
     pub fn part2(input: &str) -> usize {
         parse(input);
 
-        unimplemented!()
+        0
     }
 }
 
@@ -1254,6 +1407,9 @@ fn main() -> std::io::Result<()> {
     println!("Day 12, part 1: {}", day12::part1(INPUT12));
     println!("Day 12, part 2: {}", day12::part2(INPUT12));
     println!("Day 13, part 1: {}", day13::part1(INPUT13));
+    println!("Day 13, part 2: {}", day13::part2(INPUT13));
+    println!("Day 14, part 1: {}", day14::part1(INPUT14));
+    println!("Day 14, part 2: {}", day14::part2(INPUT14));
 
     Ok(())
 }
