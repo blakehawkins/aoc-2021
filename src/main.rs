@@ -12,6 +12,7 @@ const INPUT9: &str = include_str!("day9.input");
 const INPUT10: &str = include_str!("day10.input");
 const INPUT11: &str = include_str!("day11.input");
 const INPUT12: &str = include_str!("day12.input");
+const INPUT13: &str = include_str!("day13.input");
 
 mod day1 {
     fn parse(input: &str) -> Vec<usize> {
@@ -1209,6 +1210,24 @@ mod day12 {
     }
 }
 
+mod day13 {
+    fn parse(input: &str) -> Vec<usize> {
+        unimplemented!()
+    }
+
+    pub fn part1(input: &str) -> usize {
+        parse(input);
+
+        unimplemented!()
+    }
+
+    pub fn part2(input: &str) -> usize {
+        parse(input);
+
+        unimplemented!()
+    }
+}
+
 fn main() -> std::io::Result<()> {
     println!("Day  1, part 1: {}", day1::part1(INPUT1));
     println!("Day  1, part 2: {}", day1::part2(INPUT1));
@@ -1234,6 +1253,7 @@ fn main() -> std::io::Result<()> {
     println!("Day 11, part 2: {}", day11::part2(INPUT11));
     println!("Day 12, part 1: {}", day12::part1(INPUT12));
     println!("Day 12, part 2: {}", day12::part2(INPUT12));
+    println!("Day 13, part 1: {}", day13::part1(INPUT13));
 
     Ok(())
 }
