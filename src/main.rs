@@ -14,6 +14,7 @@ const INPUT11: &str = include_str!("day11.input");
 const INPUT12: &str = include_str!("day12.input");
 const INPUT13: &str = include_str!("day13.input");
 const INPUT14: &str = include_str!("day14.input");
+const INPUT15: &str = include_str!("day15.input");
 
 mod day1 {
     fn parse(input: &str) -> Vec<usize> {
@@ -1360,6 +1361,88 @@ mod day13 {
 }
 
 mod day14 {
+    use crate::*;
+    use itertools::Itertools;
+
+    fn parse(input: &str) -> (Vec<u8>, HashMap<(u8, u8), u8>) {
+        let mut halves = input.split("\n\n");
+
+        let p0 = halves.next().unwrap().bytes().collect();
+
+        let rules = halves
+            .next()
+            .unwrap()
+            .split('\n')
+            .filter(|line| !line.is_empty())
+            .map(|line| {
+                let mut halves = line.split(" -> ");
+
+                let mut ab = halves.next().unwrap().bytes();
+
+                (
+                    (ab.next().unwrap(), ab.next().unwrap()),
+                    halves.next().unwrap().bytes().next().unwrap(),
+                )
+            })
+            .collect();
+
+        (p0, rules)
+    }
+
+    pub fn part1(input: &str, iterations: usize) -> usize {
+        let (input, rules) = parse(input);
+
+        let mut working_set: HashMap<(u8, u8), usize> = HashMap::new();
+        let mut counts = HashMap::new();
+
+        input.iter().tuple_windows::<(_, _)>().for_each(|(a, b)| {
+            working_set
+                .entry((*a, *b))
+                .and_modify(|v| *v += 1)
+                .or_insert(1);
+        });
+
+        input.iter().for_each(|ch| {
+            counts.entry(ch).and_modify(|v| *v += 1).or_insert(1);
+        });
+
+        (0..iterations).for_each(|_| {
+            let mut swap = HashMap::new();
+
+            working_set
+                .iter()
+                .for_each(|((a, b), count)| match rules.get(&(*a, *b)) {
+                    Some(ch) => {
+                        swap.entry((*a, *ch))
+                            .and_modify(|v| *v += count)
+                            .or_insert(*count);
+                        swap.entry((*ch, *b))
+                            .and_modify(|v| *v += count)
+                            .or_insert(*count);
+                        counts
+                            .entry(ch)
+                            .and_modify(|v| *v += count)
+                            .or_insert(*count);
+                    }
+                    None => {
+                        swap.entry((*a, *b))
+                            .and_modify(|v| *v += count)
+                            .or_insert(*count);
+                    }
+                });
+
+            std::mem::swap(&mut working_set, &mut swap);
+        });
+
+        counts.values().max().unwrap() - counts.values().min().unwrap()
+    }
+
+    pub fn part2(input: &str) -> usize {
+        part1(input, 40)
+    }
+}
+
+mod day15 {
     fn parse(input: &str) -> Vec<usize> {
         input
             .split('\n')
@@ -1380,7 +1463,6 @@ mod day14 {
         0
     }
 }
-
 fn main() -> std::io::Result<()> {
     println!("Day  1, part 1: {}", day1::part1(INPUT1));
     println!("Day  1, part 2: {}", day1::part2(INPUT1));
@@ -1408,8 +1490,10 @@ fn main() -> std::io::Result<()> {
     println!("Day 12, part 2: {}", day12::part2(INPUT12));
     println!("Day 13, part 1: {}", day13::part1(INPUT13));
     println!("Day 13, part 2: {}", day13::part2(INPUT13));
-    println!("Day 14, part 1: {}", day14::part1(INPUT14));
+    println!("Day 14, part 1: {}", day14::part1(INPUT14, 10));
     println!("Day 14, part 2: {}", day14::part2(INPUT14));
+    println!("Day 15, part 1: {}", day15::part1(INPUT15));
+    println!("Day 15, part 2: {}", day15::part2(INPUT15));
 
     Ok(())
 }
@@ -1563,5 +1647,29 @@ mod tests {
 5283751526"##;
 
         assert_eq!(day11::part2(input), 195);
+    }
+
+    #[test]
+    fn day14_part1() {
+        let input = r"NNCB
+
+CH -> B
+HH -> N
+CB -> H
+NH -> C
+HB -> C
+HC -> B
+HN -> C
+NN -> C
+BH -> H
+NC -> B
+NB -> B
+BN -> B
+BB -> N
+BC -> B
+CC -> N
+CN -> C";
+
+        assert_eq!(day14::part1(input, 10), 1588);
     }
 }
