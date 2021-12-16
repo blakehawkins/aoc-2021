@@ -15,6 +15,7 @@ const INPUT12: &str = include_str!("day12.input");
 const INPUT13: &str = include_str!("day13.input");
 const INPUT14: &str = include_str!("day14.input");
 const INPUT15: &str = include_str!("day15.input");
+const INPUT16: &str = include_str!("day16.input");
 
 mod day1 {
     fn parse(input: &str) -> Vec<usize> {
@@ -1443,6 +1444,108 @@ mod day14 {
 }
 
 mod day15 {
+    use itertools::Itertools;
+    use petgraph::algo::dijkstra::dijkstra;
+    use petgraph::graphmap::DiGraphMap;
+
+    trait RiskIncrementable<T> {
+        fn risk_inc(&mut self, amt: T);
+    }
+
+    impl RiskIncrementable<u8> for u8 {
+        fn risk_inc(&mut self, amt: u8) {
+            *self += amt;
+            if *self >= 10 {
+                *self -= 9;
+            }
+        }
+    }
+
+    impl RiskIncrementable<u8> for Vec<u8> {
+        fn risk_inc(&mut self, amt: u8) {
+            self.iter_mut().map(|v| v.risk_inc(amt)).collect()
+        }
+    }
+
+    type Matrix = Vec<Vec<u8>>;
+
+    fn parse(input: &str, tesselations: usize) -> (Matrix, DiGraphMap<(usize, usize), u8>) {
+        let lines: Vec<&str> = input.split('\n').filter(|line| !line.is_empty()).collect();
+
+        let line_count = lines.len();
+
+        let mut matrix: Matrix = lines
+            .into_iter()
+            .map(|line| {
+                line.bytes()
+                    .map(|b| (b as usize - '0' as usize) as u8)
+                    .collect::<Vec<_>>()
+            })
+            .map(|mut line| {
+                let len = line.len();
+                line.resize(len * tesselations, 0);
+
+                (len..(len * tesselations)).for_each(|idx| {
+                    line[idx] = line[idx - len];
+                    line[idx].risk_inc(1);
+                });
+
+                line
+            })
+            .cycle()
+            .take(line_count * tesselations)
+            .collect();
+
+        (line_count..(line_count * tesselations)).for_each(|idx| {
+            matrix[idx].risk_inc((idx / line_count) as u8);
+        });
+
+        let edges = (0isize..matrix.len() as isize)
+            .cartesian_product(0isize..matrix[0].len() as isize)
+            .map(|(xx, yy)| {
+                [(xx - 1, yy), (xx, yy - 1), (xx + 1, yy), (xx, yy + 1)]
+                    .iter()
+                    .filter(|(xx, yy)| {
+                        *xx >= 0
+                            && *xx < matrix.len() as isize
+                            && *yy >= 0
+                            && *yy < matrix[0].len() as isize
+                    })
+                    .map(|neigh| {
+                        (
+                            (xx as usize, yy as usize),
+                            (neigh.0 as usize, neigh.1 as usize),
+                            matrix[xx as usize][yy as usize],
+                        )
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .flatten()
+            .collect::<Vec<((usize, usize), (usize, usize), u8)>>();
+
+        (matrix, DiGraphMap::from_edges(edges.iter()))
+    }
+
+    pub fn part1(input: &str) -> usize {
+        let (matrix, graph) = parse(input, 1);
+
+        let end = (matrix.len() - 1, matrix[0].len() - 1);
+        *dijkstra(&graph, end, Some((0, 0)), |e| *e.2 as usize)
+            .get(&(0, 0))
+            .unwrap()
+    }
+
+    pub fn part2(input: &str) -> usize {
+        let (matrix, graph) = parse(input, 5);
+
+        let end = (matrix.len() - 1, matrix[0].len() - 1);
+        *dijkstra(&graph, end, Some((0, 0)), |e| *e.2 as usize)
+            .get(&(0, 0))
+            .unwrap()
+    }
+}
+
+mod day16 {
     fn parse(input: &str) -> Vec<usize> {
         input
             .split('\n')
@@ -1494,6 +1597,8 @@ fn main() -> std::io::Result<()> {
     println!("Day 14, part 2: {}", day14::part2(INPUT14));
     println!("Day 15, part 1: {}", day15::part1(INPUT15));
     println!("Day 15, part 2: {}", day15::part2(INPUT15));
+    println!("Day 16, part 1: {}", day16::part1(INPUT16));
+    println!("Day 16, part 2: {}", day16::part2(INPUT16));
 
     Ok(())
 }
@@ -1671,5 +1776,37 @@ CC -> N
 CN -> C";
 
         assert_eq!(day14::part1(input, 10), 1588);
+    }
+
+    #[test]
+    fn day15_part1() {
+        let input = r"1163751742
+1381373672
+2136511328
+3694931569
+7463417111
+1319128137
+1359912421
+3125421639
+1293138521
+2311944581";
+
+        assert_eq!(day15::part1(input), 40);
+    }
+
+    #[test]
+    fn day15_part2() {
+        let input = r"1163751742
+1381373672
+2136511328
+3694931569
+7463417111
+1319128137
+1359912421
+3125421639
+1293138521
+2311944581";
+
+        assert_eq!(day15::part2(input), 315);
     }
 }
