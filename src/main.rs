@@ -16,6 +16,15 @@ const INPUT13: &str = include_str!("day13.input");
 const INPUT14: &str = include_str!("day14.input");
 const INPUT15: &str = include_str!("day15.input");
 const INPUT16: &str = include_str!("day16.input");
+const INPUT17: &str = include_str!("day17.input");
+const INPUT18: &str = include_str!("day18.input");
+const INPUT19: &str = include_str!("day19.input");
+const INPUT20: &str = include_str!("day20.input");
+const INPUT21: &str = include_str!("day21.input");
+const INPUT22: &str = include_str!("day22.input");
+const INPUT23: &str = include_str!("day23.input");
+const INPUT24: &str = include_str!("day24.input");
+const INPUT25: &str = include_str!("day25.input");
 
 mod day1 {
     fn parse(input: &str) -> Vec<usize> {
@@ -1546,11 +1555,289 @@ mod day15 {
 }
 
 mod day16 {
+    use nom::{
+        branch::alt,
+        bytes::complete::{tag, take},
+        combinator::map_res,
+        error::context,
+        multi::{length_count, length_value, many0, many1, many_till},
+        sequence::{pair, preceded, terminated},
+        IResult,
+    };
+
+    #[derive(Debug, PartialEq)]
+    pub struct Operator {
+        pub id: usize,
+        pub sub_packets: Vec<Packet>,
+    }
+
+    impl Operator {
+        fn calculate(&self) -> usize {
+            let mut sub_calculated = self.sub_packets.iter().map(Packet::calculate);
+
+            match self.id {
+                0 => sub_calculated.sum(),
+                1 => sub_calculated.product(),
+                2 => sub_calculated.min().unwrap(),
+                3 => sub_calculated.max().unwrap(),
+                5 => {
+                    let next = sub_calculated.next().unwrap();
+                    let nnext = sub_calculated.next().unwrap();
+
+                    if next > nnext {
+                        1
+                    } else {
+                        0
+                    }
+                }
+                6 => {
+                    let next = sub_calculated.next().unwrap();
+                    let nnext = sub_calculated.next().unwrap();
+
+                    if next < nnext {
+                        1
+                    } else {
+                        0
+                    }
+                }
+                7 => {
+                    let next = sub_calculated.next().unwrap();
+                    let nnext = sub_calculated.next().unwrap();
+
+                    if next == nnext {
+                        1
+                    } else {
+                        0
+                    }
+                }
+                _ => panic!("Unexpected id"),
+            }
+        }
+    }
+
+    #[derive(Debug, PartialEq)]
+    pub enum PacketBody {
+        Literal(usize),
+        Operator(Operator),
+    }
+
+    #[derive(Debug, PartialEq)]
+    pub struct Packet {
+        pub version: usize,
+        pub type_: PacketBody,
+    }
+
+    struct Bits(Vec<u8>);
+
+    impl std::fmt::Display for Bits {
+        fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+            write!(
+                f,
+                "{}",
+                self.0
+                    .iter()
+                    .map(|v| match v {
+                        0 => '0',
+                        1 => '1',
+                        _ => panic!("Unexpected bit"),
+                    })
+                    .collect::<String>()
+            )
+        }
+    }
+
+    impl Packet {
+        fn new(version: usize, type_: PacketBody) -> Self {
+            Packet { version, type_ }
+        }
+
+        fn sum_version_numbers(&self) -> usize {
+            self.version
+                + match &self.type_ {
+                    PacketBody::Operator(op) => op
+                        .sub_packets
+                        .iter()
+                        .map(|pkt| pkt.sum_version_numbers())
+                        .sum(),
+                    _ => 0,
+                }
+        }
+
+        fn calculate(&self) -> usize {
+            match &self.type_ {
+                PacketBody::Operator(op) => op.calculate(),
+                PacketBody::Literal(v) => *v,
+            }
+        }
+    }
+
+    pub fn int_from_nbits_parse(input: &[u8], len: usize) -> IResult<&[u8], usize> {
+        map_res(
+            context("int_from_nbits", take(len)),
+            |input: &[u8]| -> Result<usize, ()> {
+                Ok((0..len).rev().enumerate().fold(0usize, |accum, iter| {
+                    accum + ((input[iter.1] as usize) << iter.0)
+                }))
+            },
+        )(input)
+    }
+
+    pub fn int_from_3bits_parse(input: &[u8]) -> IResult<&[u8], usize> {
+        map_res(
+            context("int_from_3bits", take(3usize)),
+            |v: &[u8]| -> Result<usize, ()> {
+                Ok((((v[0] as usize) << 2) + ((v[1] as usize) << 1) + (v[2] as usize)) as usize)
+            },
+        )(input)
+    }
+
+    fn one_padded_5b_parse(input: &[u8]) -> IResult<&[u8], &[u8]> {
+        context("one_padded_5b", preceded(tag([1u8]), take(4usize)))(input)
+    }
+
+    fn zero_padded_5b_parse(input: &[u8]) -> IResult<&[u8], &[u8]> {
+        context("zero_padded_5b", preceded(tag([0u8]), take(4usize)))(input)
+    }
+
+    fn literal_parse(input: &[u8]) -> IResult<&[u8], usize> {
+        map_res(
+            context(
+                "literal_parse",
+                many_till(one_padded_5b_parse, zero_padded_5b_parse),
+            ),
+            |(parts, final_part)| -> Result<usize, ()> {
+                let res = final_part
+                    .iter()
+                    .rev()
+                    .chain(
+                        parts
+                            .iter()
+                            .rev()
+                            .map(|four_bits| four_bits.iter().rev())
+                            .flatten(),
+                    )
+                    .enumerate()
+                    .fold(0usize, |accum, iter| accum + ((*iter.1 as usize) << iter.0));
+
+                Ok(res)
+            },
+        )(input)
+    }
+
+    fn body_literal_parse(input: &[u8]) -> IResult<&[u8], PacketBody> {
+        map_res(
+            context("body_literal", preceded(tag([1, 0, 0]), literal_parse)),
+            |v| -> Result<PacketBody, ()> { Ok(PacketBody::Literal(v)) },
+        )(input)
+    }
+
+    fn packets_parse(input: &[u8]) -> IResult<&[u8], Vec<Packet>> {
+        context("packets", many1(packet_parse))(input)
+    }
+
+    pub fn body_operator_by_total_length_parse(input: &[u8]) -> IResult<&[u8], Vec<Packet>> {
+        context(
+            "body_operator_by_total_length",
+            length_value(|input| int_from_nbits_parse(input, 15), packets_parse),
+        )(input)
+    }
+
+    fn body_operator_by_num_child_packets(input: &[u8]) -> IResult<&[u8], Vec<Packet>> {
+        context(
+            "body_operator_by_num_child_packets",
+            length_count(|input| int_from_nbits_parse(input, 11), packet_parse),
+        )(input)
+    }
+
+    fn body_operator_parse_with_size(input: &[u8]) -> IResult<&[u8], Vec<Packet>> {
+        context(
+            "body_operator_parse_with_size",
+            alt((
+                preceded(tag([0]), body_operator_by_total_length_parse),
+                preceded(tag([1]), body_operator_by_num_child_packets),
+            )),
+        )(input)
+    }
+
+    fn body_operator_parse(input: &[u8]) -> IResult<&[u8], PacketBody> {
+        map_res(
+            context(
+                "body_operator",
+                pair(
+                    int_from_3bits_parse, // Version
+                    body_operator_parse_with_size,
+                ),
+            ),
+            |(id, sub_packets)| -> Result<PacketBody, ()> {
+                Ok(PacketBody::Operator(Operator { id, sub_packets }))
+            },
+        )(input)
+    }
+
+    fn body_parse(input: &[u8]) -> IResult<&[u8], PacketBody> {
+        context("body", alt((body_literal_parse, body_operator_parse)))(input)
+    }
+
+    // Parse slice of bits (each encoded as a sparse u8) into a packet.
+    pub fn packet_parse(input: &[u8]) -> IResult<&[u8], Packet> {
+        map_res(
+            context(
+                "packet",
+                pair(
+                    int_from_3bits_parse, // Version
+                    body_parse,
+                ),
+            ),
+            |(version, type_)| -> Result<Packet, ()> { Ok(Packet::new(version, type_)) },
+        )(input)
+    }
+
+    fn packet_parse_null_terminated(input: &[u8]) -> IResult<&[u8], Packet> {
+        context(
+            "packet_parse_null_terminated",
+            terminated(packet_parse, many0(tag([0]))),
+        )(input)
+    }
+
+    pub fn parse_bits(input: &str) -> Vec<u8> {
+        input
+            .bytes()
+            .map(|by| u8::from_str_radix(std::str::from_utf8(&[by]).unwrap(), 16).unwrap())
+            .map(|u8| {
+                [
+                    (u8 & 0b1000) >> 3,
+                    (u8 & 0b0100) >> 2,
+                    (u8 & 0b0010) >> 1,
+                    (u8 & 0b0001),
+                ]
+            })
+            .flatten()
+            .collect()
+    }
+
+    pub fn parse(input: &str) -> Packet {
+        let bits = parse_bits(input);
+
+        let v = packet_parse_null_terminated(&bits);
+
+        v.unwrap().1
+    }
+
+    pub fn part1(input: &str) -> usize {
+        parse(input).sum_version_numbers()
+    }
+
+    pub fn part2(input: &str) -> usize {
+        parse(input).calculate()
+    }
+}
+
+mod day17 {
     fn parse(input: &str) -> Vec<usize> {
         input
             .split('\n')
             .filter(|line| !line.is_empty())
-            .map(|line| line.parse::<usize>().unwrap())
+            .map(|line| line.parse().unwrap())
             .collect()
     }
 
@@ -1566,6 +1853,183 @@ mod day16 {
         0
     }
 }
+
+mod day18 {
+    fn parse(input: &str) -> Vec<usize> {
+        input
+            .split('\n')
+            .filter(|line| !line.is_empty())
+            .map(|line| line.parse().unwrap())
+            .collect()
+    }
+
+    pub fn part1(input: &str) -> usize {
+        parse(input);
+
+        0
+    }
+
+    pub fn part2(input: &str) -> usize {
+        parse(input);
+
+        0
+    }
+}
+
+mod day19 {
+    fn parse(input: &str) -> Vec<usize> {
+        input
+            .split('\n')
+            .filter(|line| !line.is_empty())
+            .map(|line| line.parse().unwrap())
+            .collect()
+    }
+
+    pub fn part1(input: &str) -> usize {
+        parse(input);
+
+        0
+    }
+
+    pub fn part2(input: &str) -> usize {
+        parse(input);
+
+        0
+    }
+}
+
+mod day20 {
+    fn parse(input: &str) -> Vec<usize> {
+        input
+            .split('\n')
+            .filter(|line| !line.is_empty())
+            .map(|line| line.parse().unwrap())
+            .collect()
+    }
+
+    pub fn part1(input: &str) -> usize {
+        parse(input);
+
+        0
+    }
+
+    pub fn part2(input: &str) -> usize {
+        parse(input);
+
+        0
+    }
+}
+
+mod day21 {
+    fn parse(input: &str) -> Vec<usize> {
+        input
+            .split('\n')
+            .filter(|line| !line.is_empty())
+            .map(|line| line.parse().unwrap())
+            .collect()
+    }
+
+    pub fn part1(input: &str) -> usize {
+        parse(input);
+
+        0
+    }
+
+    pub fn part2(input: &str) -> usize {
+        parse(input);
+
+        0
+    }
+}
+
+mod day22 {
+    fn parse(input: &str) -> Vec<usize> {
+        input
+            .split('\n')
+            .filter(|line| !line.is_empty())
+            .map(|line| line.parse().unwrap())
+            .collect()
+    }
+
+    pub fn part1(input: &str) -> usize {
+        parse(input);
+
+        0
+    }
+
+    pub fn part2(input: &str) -> usize {
+        parse(input);
+
+        0
+    }
+}
+
+mod day23 {
+    fn parse(input: &str) -> Vec<usize> {
+        input
+            .split('\n')
+            .filter(|line| !line.is_empty())
+            .map(|line| line.parse().unwrap())
+            .collect()
+    }
+
+    pub fn part1(input: &str) -> usize {
+        parse(input);
+
+        0
+    }
+
+    pub fn part2(input: &str) -> usize {
+        parse(input);
+
+        0
+    }
+}
+
+mod day24 {
+    fn parse(input: &str) -> Vec<usize> {
+        input
+            .split('\n')
+            .filter(|line| !line.is_empty())
+            .map(|line| line.parse().unwrap())
+            .collect()
+    }
+
+    pub fn part1(input: &str) -> usize {
+        parse(input);
+
+        0
+    }
+
+    pub fn part2(input: &str) -> usize {
+        parse(input);
+
+        0
+    }
+}
+
+mod day25 {
+    fn parse(input: &str) -> Vec<usize> {
+        input
+            .split('\n')
+            .filter(|line| !line.is_empty())
+            .map(|line| line.parse().unwrap())
+            .collect()
+    }
+
+    pub fn part1(input: &str) -> usize {
+        parse(input);
+
+        0
+    }
+
+    pub fn part2(input: &str) -> usize {
+        parse(input);
+
+        0
+    }
+}
+
 fn main() -> std::io::Result<()> {
     println!("Day  1, part 1: {}", day1::part1(INPUT1));
     println!("Day  1, part 2: {}", day1::part2(INPUT1));
@@ -1599,6 +2063,24 @@ fn main() -> std::io::Result<()> {
     println!("Day 15, part 2: {}", day15::part2(INPUT15));
     println!("Day 16, part 1: {}", day16::part1(INPUT16));
     println!("Day 16, part 2: {}", day16::part2(INPUT16));
+    println!("Day 17, part 1: {}", day17::part1(INPUT17));
+    println!("Day 17, part 2: {}", day17::part2(INPUT17));
+    println!("Day 18, part 1: {}", day18::part1(INPUT18));
+    println!("Day 18, part 2: {}", day18::part2(INPUT18));
+    println!("Day 19, part 1: {}", day19::part1(INPUT19));
+    println!("Day 19, part 2: {}", day19::part2(INPUT19));
+    println!("Day 20, part 1: {}", day20::part1(INPUT20));
+    println!("Day 20, part 2: {}", day20::part2(INPUT20));
+    println!("Day 21, part 1: {}", day21::part1(INPUT21));
+    println!("Day 21, part 2: {}", day21::part2(INPUT21));
+    println!("Day 22, part 1: {}", day22::part1(INPUT22));
+    println!("Day 22, part 2: {}", day22::part2(INPUT22));
+    println!("Day 23, part 1: {}", day23::part1(INPUT23));
+    println!("Day 23, part 2: {}", day23::part2(INPUT23));
+    println!("Day 24, part 1: {}", day24::part1(INPUT24));
+    println!("Day 24, part 2: {}", day24::part2(INPUT24));
+    println!("Day 25, part 1: {}", day25::part1(INPUT25));
+    println!("Day 25, part 2: {}", day25::part2(INPUT25));
 
     Ok(())
 }
@@ -1808,5 +2290,78 @@ CN -> C";
 2311944581";
 
         assert_eq!(day15::part2(input), 315);
+    }
+
+    #[test]
+    fn day16_part1() {
+        let input = "D2FE28";
+
+        assert_eq!(
+            day16::parse(input),
+            day16::Packet {
+                version: 6,
+                type_: day16::PacketBody::Literal(2021)
+            }
+        );
+
+        let input = "38006F45291200";
+
+        assert_eq!(
+            day16::parse(input),
+            day16::Packet {
+                version: 1,
+                type_: day16::PacketBody::Operator(day16::Operator {
+                    id: 6,
+                    sub_packets: vec![
+                        day16::Packet {
+                            version: 6,
+                            type_: day16::PacketBody::Literal(10)
+                        },
+                        day16::Packet {
+                            version: 2,
+                            type_: day16::PacketBody::Literal(20)
+                        }
+                    ]
+                })
+            }
+        );
+    }
+
+    #[test]
+    fn day16_parser_int_from_nbits_parse() {
+        let input = &[0, 1, 1, 1, 0, 1];
+        assert_eq!(day16::int_from_nbits_parse(input, 5), Ok((&[1][..], 14)))
+    }
+
+    #[test]
+    fn day16_parser_int_from_3bits_parse() {
+        let input = &[1, 0, 1, 0, 0, 0];
+
+        assert_eq!(day16::int_from_3bits_parse(input), Ok((&[0, 0, 0][..], 5)));
+    }
+
+    #[test]
+    fn day16_parser_body_operator_by_total_length_parse() {
+        let input = &[
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 1, 1, 1, 1, 0, 1, 0, 0, 0, 1, 0, 1, 0, 0, 1, 0,
+            1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        ];
+
+        assert_eq!(
+            day16::body_operator_by_total_length_parse(input),
+            Ok((
+                &[0, 0, 0, 0, 0, 0, 0][..],
+                (vec![
+                    day16::Packet {
+                        version: 6,
+                        type_: day16::PacketBody::Literal(10)
+                    },
+                    day16::Packet {
+                        version: 2,
+                        type_: day16::PacketBody::Literal(20)
+                    }
+                ])
+            ))
+        );
     }
 }
