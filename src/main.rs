@@ -1833,24 +1833,150 @@ mod day16 {
 }
 
 mod day17 {
-    fn parse(input: &str) -> Vec<usize> {
-        input
-            .split('\n')
-            .filter(|line| !line.is_empty())
-            .map(|line| line.parse().unwrap())
-            .collect()
+    use itertools::Itertools;
+
+    struct Area {
+        x0: isize,
+        x1: isize,
+        y0: isize,
+        y1: isize,
+    }
+
+    #[derive(Clone, Debug)]
+    struct Vec2 {
+        x: isize,
+        y: isize,
+    }
+
+    type Point = Vec2;
+
+    trait MeasurableHeight {
+        fn height(&self) -> isize;
+    }
+
+    impl MeasurableHeight for Point {
+        fn height(&self) -> isize {
+            self.y
+        }
+    }
+
+    impl MeasurableHeight for Vec<Point> {
+        fn height(&self) -> isize {
+            self.iter().map(Point::height).max().unwrap()
+        }
+    }
+
+    impl Vec2 {
+        fn new(x: isize, y: isize) -> Self {
+            Vec2 { x, y }
+        }
+    }
+
+    impl Area {
+        fn new(x0: isize, x1: isize, y0: isize, y1: isize) -> Self {
+            Area { x0, x1, y0, y1 }
+        }
+
+        fn contains(&self, point: &Point) -> bool {
+            self.x0 <= point.x && point.x <= self.x1 && self.y0 <= point.y && point.y <= self.y1
+        }
+
+        fn is_above(&self, point: &Point) -> bool {
+            self.y0 > point.y
+        }
+    }
+
+    fn as_isize(input: &str) -> isize {
+        input.parse::<isize>().unwrap()
+    }
+
+    #[derive(Debug)]
+    struct Projection {
+        vel: std::cell::RefCell<Vec2>,
+        pos: std::cell::RefCell<Point>,
+    }
+
+    impl Iterator for Projection {
+        type Item = Point;
+
+        fn next(&mut self) -> Option<Self::Item> {
+            let mut pos = self.pos.borrow_mut();
+            let mut vel = self.vel.borrow_mut();
+
+            *pos = Point::new(pos.x + vel.x, pos.y + vel.y);
+            *vel = Vec2::new((vel.x - 1).max(0), vel.y - 1);
+
+            Some(pos.clone())
+        }
+    }
+
+    impl Projection {
+        fn project_until_below(&mut self, area: &Area) -> Vec<Point> {
+            (0..)
+                .map(|_| self.next().unwrap())
+                .take_while(|pt| !area.is_above(pt))
+                .collect()
+        }
+
+        fn new(vel: Vec2) -> Self {
+            Projection {
+                vel: std::cell::RefCell::new(vel),
+                pos: std::cell::RefCell::new(Point::new(0, 0)),
+            }
+        }
+    }
+
+    fn parse(input: &str) -> Area {
+        let coords = &input[15..];
+        let mut left_right = coords.split(", y=");
+        let mut x = left_right.next().unwrap().split("..");
+        let mut y = left_right.next().unwrap().split("..");
+
+        Area::new(
+            as_isize(x.next().unwrap()),
+            as_isize(x.next().unwrap()),
+            as_isize(y.next().unwrap()),
+            as_isize(y.next().unwrap()),
+        )
     }
 
     pub fn part1(input: &str) -> usize {
-        parse(input);
+        let target = parse(input);
 
-        0
+        // Calculate min-x:
+        // n + n - 1 + n - 2 + ... + 0 = area.x0
+        // Arithmetic series -> area.x0 = 1/2 * n * n++ -> n^2 + n - 2area.x0 = 0
+        // -> (-1 += sqrt(1 + 8*area.x0)) / 2
+        let min_x = (-1 + ((1 + 8 * target.x0) as f64).sqrt() as isize) / 2;
+        let min_y = 0;
+
+        (min_x..300)
+            .cartesian_product(min_y..300)
+            .map(|(x, y)| Projection::new(Vec2::new(x, y)))
+            .map(|mut projection| projection.project_until_below(&target))
+            .filter(|collection| collection.iter().any(|pt| target.contains(pt)))
+            .map(|collection| collection.iter().map(|v| v.y).max().unwrap())
+            .max()
+            .unwrap() as usize
     }
 
     pub fn part2(input: &str) -> usize {
-        parse(input);
+        let target = parse(input);
 
-        0
+        // Calculate min-x:
+        // n + n - 1 + n - 2 + ... + 0 = area.x0
+        // Arithmetic series -> area.x0 = 1/2 * n * n++ -> n^2 + n - 2area.x0 = 0
+        // -> (-1 += sqrt(1 + 8*area.x0)) / 2
+        let min_x = (-1 + ((1 + 8 * target.x0) as f64).sqrt() as isize) / 2;
+        let min_y = target.y0;
+        let max_x = target.x1 + 1;
+
+        (min_x..max_x)
+            .cartesian_product(min_y..400)
+            .map(|(x, y)| Projection::new(Vec2::new(x, y)))
+            .map(|mut projection| projection.project_until_below(&target))
+            .filter(|collection| collection.iter().any(|pt| target.contains(pt)))
+            .count()
     }
 }
 
@@ -2363,5 +2489,12 @@ CN -> C";
                 ])
             ))
         );
+    }
+
+    #[test]
+    fn day17_part1() {
+        let input = "target area: x=20..30, y=-10..-5";
+
+        assert_eq!(day17::part1(input), 45);
     }
 }
